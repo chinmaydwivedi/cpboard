@@ -24,9 +24,21 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
+      const domainCheck = await fetch("/api/auth/check-domain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const domainData = await domainCheck.json();
+      if (!domainData.valid) {
+        setError("Your university is not registered yet. Contact the admin to add it.");
+        setLoading(false);
+        return;
+      }
+
       const result = await signIn("nodemailer", { email, redirect: false });
       if (result?.error) {
-        setError("Could not send verification email. Your university may not be registered yet.");
+        setError("Failed to send email. Please try again.");
       } else {
         setSent(true);
       }
@@ -51,10 +63,14 @@ export default function LoginPage() {
             <p className="mt-2 text-sm text-muted-foreground">
               We sent a sign-in link to <strong className="text-foreground">{email}</strong>.
             </p>
+            <div className="mt-4 rounded-md bg-secondary/50 border border-border/40 p-3">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                <strong className="text-foreground">Not seeing it?</strong> Check your spam/junk folder. The email comes from <span className="font-mono text-[10px]">dwivedisd8@gmail.com</span>.
+              </p>
+            </div>
             <p className="mt-4 text-xs text-muted-foreground">
-              Didn&apos;t get it?{" "}
               <button onClick={() => setSent(false)} className="text-primary font-medium hover:underline">
-                Try again
+                Send again
               </button>
             </p>
           </div>
