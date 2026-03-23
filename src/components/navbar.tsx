@@ -1,0 +1,138 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
+import { ThemeToggle } from "./theme-toggle";
+import { cn } from "@/lib/utils";
+import { Trophy, Zap, LayoutDashboard, Menu, X, LogOut, User } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+
+const links = [
+  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+  { href: "/cp-rankings", label: "CP Rankings", icon: Zap },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+];
+
+export function Navbar({ user }: { user?: { name?: string | null; username?: string } | null }) {
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
+      <nav className="mx-auto flex h-14 max-w-5xl items-center justify-between px-5">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
+            <span className="text-[10px] font-black text-primary-foreground tracking-tight">CP</span>
+          </div>
+          <span className="font-semibold text-[15px] tracking-tight">Board</span>
+        </Link>
+
+        <div className="hidden md:flex items-center gap-0.5">
+          {links.map((link) => {
+            const Icon = link.icon;
+            const active = pathname === link.href || pathname.startsWith(link.href + "/");
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors",
+                  active ? "text-primary bg-primary/8" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {link.label}
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          {user ? (
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="flex items-center gap-2 rounded-md border border-border/60 px-2.5 py-1.5 text-[13px] font-medium hover:bg-secondary transition-colors"
+              >
+                <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center text-[10px] font-semibold text-primary">
+                  {(user.name || user.username || "?")[0].toUpperCase()}
+                </div>
+                <span className="hidden sm:inline">{user.name || user.username}</span>
+              </button>
+              {dropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-44 rounded-lg border border-border/60 bg-card shadow-lg py-1 z-50">
+                  <Link
+                    href={`/u/${user.username}`}
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                  >
+                    <User className="h-3.5 w-3.5" /> Profile
+                  </Link>
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                  >
+                    <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
+                  </Link>
+                  <div className="border-t border-border/40 my-1" />
+                  <button
+                    onClick={() => signOut({ callbackUrl: "/" })}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors"
+                  >
+                    <LogOut className="h-3.5 w-3.5" /> Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link href="/login" className="rounded-md bg-primary px-4 py-1.5 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+              Sign In
+            </Link>
+          )}
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden p-1.5 rounded-md hover:bg-secondary transition-colors">
+            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
+        </div>
+      </nav>
+      {mobileOpen && (
+        <div className="md:hidden border-t border-border/40 bg-background px-5 py-2">
+          {links.map((link) => {
+            const Icon = link.icon;
+            return (
+              <Link key={link.href} href={link.href} onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+                <Icon className="h-3.5 w-3.5" /> {link.label}
+              </Link>
+            );
+          })}
+          {user && (
+            <>
+              <div className="border-t border-border/40 my-1" />
+              <button
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="flex items-center gap-2 w-full px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Sign Out
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </header>
+  );
+}
