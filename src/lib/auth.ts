@@ -94,7 +94,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             </div>
           `,
         });
-        const failed = result.rejected?.concat(result.pending ?? []).filter(Boolean);
+        const failed = result.rejected?.filter(Boolean);
         if (failed?.length) {
           throw new Error(`Email could not be sent to ${failed.join(", ")}`);
         }
