@@ -5,6 +5,23 @@ import { prisma } from "./prisma";
 
 const baseAdapter = PrismaAdapter(prisma);
 
+async function findUniversityByDomain(domain: string) {
+  const exact = await prisma.university.findUnique({
+    where: { emailDomain: domain },
+  });
+  if (exact) return exact;
+
+  const parts = domain.split(".");
+  for (let i = 1; i < parts.length; i++) {
+    const suffix = parts.slice(i).join(".");
+    const match = await prisma.university.findFirst({
+      where: { emailDomain: { endsWith: suffix } },
+    });
+    if (match) return match;
+  }
+  return null;
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: {
     ...baseAdapter,
@@ -12,9 +29,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const email = data.email as string;
       const domain = email.split("@")[1];
 
-      const university = await prisma.university.findUnique({
-        where: { emailDomain: domain },
-      });
+      const university = await findUniversityByDomain(domain);
 
       if (!university) {
         throw new Error("University not registered");
@@ -74,9 +89,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const domain = user.email.split("@")[1];
       if (!domain) return false;
 
-      const university = await prisma.university.findUnique({
-        where: { emailDomain: domain },
-      });
+      const university = await findUniversityByDomain(domain);
 
       if (!university) return "/login?error=UnknownUniversity";
 
