@@ -24,7 +24,7 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const result = await signIn("resend", { email, redirect: false });
+      const result = await signIn("nodemailer", { email, redirect: false });
       if (result?.error) {
         setError("Could not send verification email. Your university may not be registered yet.");
       } else {
