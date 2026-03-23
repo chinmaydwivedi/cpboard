@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { syncUserPlatform } from "@/lib/platforms";
 
+export const maxDuration = 10;
+
+const BATCH_SIZE = 3;
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -12,7 +16,7 @@ export async function GET(req: NextRequest) {
     where: { verified: true },
     include: { user: true },
     orderBy: { lastSynced: "asc" },
-    take: 50,
+    take: BATCH_SIZE,
   });
 
   const results: { userId: string; platform: string; success: boolean; error?: string }[] = [];
@@ -20,11 +24,7 @@ export async function GET(req: NextRequest) {
   for (const profile of profiles) {
     try {
       await syncUserPlatform(profile.userId, profile.platform, profile.handle);
-      results.push({
-        userId: profile.userId,
-        platform: profile.platform,
-        success: true,
-      });
+      results.push({ userId: profile.userId, platform: profile.platform, success: true });
     } catch (error) {
       results.push({
         userId: profile.userId,
@@ -33,8 +33,6 @@ export async function GET(req: NextRequest) {
         error: error instanceof Error ? error.message : "Unknown",
       });
     }
-
-    await new Promise((r) => setTimeout(r, 2500));
   }
 
   return NextResponse.json({
