@@ -5,8 +5,17 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { ThemeToggle } from "./theme-toggle";
 import { cn } from "@/lib/utils";
-import { Trophy, Zap, LayoutDashboard, Menu, X, LogOut, User } from "lucide-react";
+import { Trophy, Zap, LayoutDashboard, Menu, X, LogOut, User, CircleHelp } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { tourIdForPathname } from "@/components/walkthrough/tours";
+import { runWalkthrough } from "@/components/walkthrough/run-walkthrough";
+import { toast } from "sonner";
 
 const links = [
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
@@ -30,8 +39,10 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  const pageTourId = tourIdForPathname(pathname);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
+    <header data-tour="site-header" className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <nav className="mx-auto flex h-14 max-w-5xl items-center justify-between px-5">
         <Link href="/" className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
@@ -61,6 +72,26 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
         </div>
 
         <div className="flex items-center gap-2">
+          {pageTourId && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="hidden sm:inline-flex items-center justify-center rounded-md border border-border/60 p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors outline-none"
+                aria-label="Help and tour"
+              >
+                <CircleHelp className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[11rem]">
+                <DropdownMenuItem
+                  onClick={() => {
+                    const ok = runWalkthrough(pageTourId);
+                    if (!ok) toast.message("Tour unavailable", { description: "This page has no tour targets yet." });
+                  }}
+                >
+                  Tour this page
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <ThemeToggle />
           {user ? (
             <div className="relative" ref={dropdownRef}>
@@ -111,6 +142,19 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
       </nav>
       {mobileOpen && (
         <div className="md:hidden border-t border-border/40 bg-background px-5 py-2">
+          {pageTourId && (
+            <button
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                const ok = runWalkthrough(pageTourId);
+                if (!ok) toast.message("Tour unavailable", { description: "This page has no tour targets yet." });
+              }}
+              className="flex items-center gap-2 w-full px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <CircleHelp className="h-3.5 w-3.5" /> Tour this page
+            </button>
+          )}
           {links.map((link) => {
             const Icon = link.icon;
             return (

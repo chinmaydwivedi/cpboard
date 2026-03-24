@@ -60,25 +60,22 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const syncResults: { platform: Platform; success: boolean; error?: string }[] = [];
+  const syncPromises = profiles
+    .filter((p) => p.url?.trim())
+    .map((profile) => {
+      const handle = extractHandle(profile.platform, profile.url);
+      if (!handle) return null;
+      return syncUserPlatform(user.id, profile.platform, handle)
+        .then(() => ({ platform: profile.platform, success: true as const }))
+        .catch((error: unknown) => ({
+          platform: profile.platform,
+          success: false as const,
+          error: error instanceof Error ? error.message : "Sync failed",
+        }));
+    })
+    .filter(Boolean);
 
-  for (const profile of profiles) {
-    if (!profile.url?.trim()) continue;
-
-    const handle = extractHandle(profile.platform, profile.url);
-    if (!handle) continue;
-
-    try {
-      await syncUserPlatform(user.id, profile.platform, handle);
-      syncResults.push({ platform: profile.platform, success: true });
-    } catch (error) {
-      syncResults.push({
-        platform: profile.platform,
-        success: false,
-        error: error instanceof Error ? error.message : "Sync failed",
-      });
-    }
-  }
+  const syncResults = await Promise.all(syncPromises);
 
   return NextResponse.json({ success: true, syncResults });
 }

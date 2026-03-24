@@ -44,7 +44,7 @@ export function CPRankingsClient({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3" data-tour="cp-summary">
         <div className="rounded-lg border border-border/60 p-4">
           <div className="flex items-center gap-2 mb-2">
             <Users className="h-3.5 w-3.5 text-muted-foreground" />
@@ -73,13 +73,13 @@ export function CPRankingsClient({
       </div>
 
       {distribution.length > 0 && (
-        <div className="rounded-lg border border-border/60 p-5">
+        <div className="rounded-lg border border-border/60 p-5" data-tour="cp-distribution">
           <p className="text-[11px] text-muted-foreground font-medium mb-4">Rating Distribution</p>
           <RatingDistributionChart data={distribution} />
         </div>
       )}
 
-      <div className="rounded-lg border border-border/60 overflow-hidden">
+      <div className="rounded-lg border border-border/60 overflow-hidden" data-tour="cp-table">
         <div className="px-5 py-3 border-b border-border/60">
           <p className="text-sm font-medium">Rankings</p>
         </div>

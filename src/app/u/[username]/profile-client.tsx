@@ -56,8 +56,12 @@ export function ProfileClient({
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-start gap-4">
-        <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary shrink-0">
-          {(user.name || user.username)[0].toUpperCase()}
+        <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary shrink-0 overflow-hidden">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt={user.name || user.username} className="h-full w-full object-cover" />
+          ) : (
+            (user.name || user.username)[0].toUpperCase()
+          )}
         </div>
         <div>
           <h1 className="text-xl font-bold">{user.name || user.username}</h1>
@@ -93,8 +97,7 @@ export function ProfileClient({
         </div>
       </div>
 
-      <div className="rounded-lg border border-border/60 p-4 mb-6">
-        <p className="text-[11px] text-muted-foreground font-medium mb-3">Activity</p>
+      <div className="mb-6">
         <Heatmap data={heatmapData} />
       </div>
 

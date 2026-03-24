@@ -57,6 +57,7 @@ export default async function DashboardPage() {
         name: user.name,
         username: user.username,
         email: user.email,
+        avatarUrl: user.avatarUrl,
         university: {
           name: user.university.name,
           shortName: user.university.shortName,

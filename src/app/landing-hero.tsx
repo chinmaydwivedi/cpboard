@@ -37,13 +37,18 @@ export function LandingHero({
     <div>
       <section className="relative overflow-hidden">
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-15 dark:opacity-40"
+          className="absolute inset-0 bg-cover bg-center opacity-30 dark:opacity-40"
           style={{ backgroundImage: "url(/bg/hero-red.png)" }}
         />
         <div className="absolute inset-0 bg-linear-to-b from-background/60 via-background/80 to-background dark:from-background/40 dark:via-background/70 dark:to-background" />
 
         <div className="relative mx-auto max-w-5xl px-5 pt-24 sm:pt-32 pb-20 text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+          <motion.div
+            data-tour="home-hero"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
             <p className="text-sm font-medium text-primary mb-4 tracking-wide uppercase">
               Open for all universities
             </p>
@@ -82,6 +87,7 @@ export function LandingHero({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15 }}
             className="mx-auto mt-20 max-w-lg grid grid-cols-4 gap-6"
+            data-tour="home-stats"
           >
             {[
               { label: "Users", value: stats.users },
@@ -102,7 +108,7 @@ export function LandingHero({
       </section>
 
       <section className="mx-auto max-w-5xl px-5 py-16">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-tour="home-features">
           {features.map((feature, i) => {
             const Icon = feature.icon;
             return (
@@ -124,12 +130,12 @@ export function LandingHero({
 
       <section className="relative overflow-hidden">
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-10 dark:opacity-25"
+          className="absolute inset-0 bg-cover bg-center opacity-20 dark:opacity-25"
           style={{ backgroundImage: "url(/bg/hero-mono.png)" }}
         />
         <div className="absolute inset-0 bg-linear-to-b from-background via-background/70 to-background dark:from-background dark:via-background/60 dark:to-background" />
         <div className="relative mx-auto max-w-5xl px-5 py-20">
-          <div className="rounded-lg border border-border/40 bg-card/60 backdrop-blur-sm p-10 text-center">
+          <div className="rounded-lg border border-border/40 bg-card/60 backdrop-blur-sm p-10 text-center" data-tour="home-cta">
             <h2 className="font-heading text-2xl italic">Ready to compete?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Sign in with your university email to join the leaderboard.

@@ -121,3 +121,32 @@
     font-family: var(--font-sans);
   }
 }
+
+/* driver.js tour — match app surfaces */
+.driver-popover.driver-popover-cpboard {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 40px oklch(0 0 0 / 0.35);
+}
+.driver-popover.driver-popover-cpboard .driver-popover-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.driver-popover.driver-popover-cpboard .driver-popover-description {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+.driver-popover.driver-popover-cpboard button {
+  font-size: 0.75rem;
+  text-shadow: none;
+}
+.driver-popover.driver-popover-cpboard .driver-popover-navigation-btns button {
+  border-radius: calc(var(--radius) * 0.8);
+}
+.driver-popover.driver-popover-cpboard .driver-popover-progress-text {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}

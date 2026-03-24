@@ -58,7 +58,7 @@ export default async function CPRankingsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
-      <div className="mb-8">
+      <div className="mb-8" data-tour="cp-header">
         <h1 className="text-2xl font-bold tracking-tight">CP Rankings</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Codeforces ratings across all universities

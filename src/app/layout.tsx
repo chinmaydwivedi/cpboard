@@ -6,6 +6,7 @@ import { Navbar } from "@/components/navbar";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Toaster } from "@/components/ui/sonner";
+import { WalkthroughHost } from "@/components/walkthrough/walkthrough-host";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -60,6 +61,7 @@ export default async function RootLayout({
         <ThemeProvider>
           <TooltipProvider>
             <Navbar user={navUser} />
+            <WalkthroughHost />
             <main className="flex-1">{children}</main>
             <footer className="border-t border-border/40 py-6 mt-12">
               <div className="mx-auto max-w-5xl px-5 flex items-center justify-between text-[11px] text-muted-foreground">

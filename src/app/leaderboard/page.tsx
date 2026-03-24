@@ -65,7 +65,7 @@ export default async function LeaderboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
-      <div className="mb-8">
+      <div className="mb-8" data-tour="lb-header">
         <h1 className="text-2xl font-bold tracking-tight">Leaderboard</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Global rankings across all universities

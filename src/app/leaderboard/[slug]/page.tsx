@@ -56,7 +56,7 @@ export default async function UniversityLeaderboardPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-8">
+      <div className="mb-8" data-tour="lb-uni-header">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">{university.name}</h1>
           <Badge variant="outline" className="font-mono">

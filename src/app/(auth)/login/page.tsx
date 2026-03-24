@@ -52,7 +52,7 @@ export default function LoginPage() {
   if (sent) {
     return (
       <div className="relative min-h-[60vh] flex items-center justify-center">
-        <div className="absolute inset-0 bg-cover bg-center opacity-8 dark:opacity-20" style={{ backgroundImage: "url(/bg/hero-mono.png)" }} />
+        <div className="absolute inset-0 bg-cover bg-center opacity-20 dark:opacity-20" style={{ backgroundImage: "url(/bg/hero-mono.png)" }} />
         <div className="absolute inset-0 bg-linear-to-b from-background/80 to-background dark:from-background/60 dark:to-background" />
         <div className="relative mx-auto max-w-sm px-5">
           <div className="rounded-lg border border-border/40 bg-card/90 backdrop-blur-sm p-8 text-center">
@@ -65,7 +65,7 @@ export default function LoginPage() {
             </p>
             <div className="mt-4 rounded-md bg-secondary/50 border border-border/40 p-3">
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                <strong className="text-foreground">Not seeing it?</strong> Check your spam/junk folder. The email comes from <span className="font-mono text-[10px]">dwivedisd8@gmail.com</span>.
+                <strong className="text-foreground">Not seeing it?</strong> Check your spam or junk folder. Look for a message about signing in to CPBoard; the sender name is often <span className="text-foreground/90">CPBoard</span>.
               </p>
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
@@ -81,7 +81,7 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-[60vh] flex items-center justify-center">
-      <div className="absolute inset-0 bg-cover bg-center opacity-8 dark:opacity-20" style={{ backgroundImage: "url(/bg/hero-mono.png)" }} />
+      <div className="absolute inset-0 bg-cover bg-center opacity-20 dark:opacity-20" style={{ backgroundImage: "url(/bg/hero-mono.png)" }} />
       <div className="absolute inset-0 bg-linear-to-b from-background/80 to-background dark:from-background/60 dark:to-background" />
       <div className="relative mx-auto max-w-sm px-5 w-full">
         <div className="rounded-lg border border-border/40 bg-card/90 backdrop-blur-sm p-8">

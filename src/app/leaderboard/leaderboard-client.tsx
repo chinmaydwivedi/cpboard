@@ -36,7 +36,7 @@ export function LeaderboardClient({
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 mb-6" data-tour="lb-filters">
         <Input
           placeholder="Search users..."
           value={search}

@@ -2,16 +2,15 @@ import type { PlatformData } from "@/types";
 
 const API_BASE = "https://cp-rating-api.vercel.app";
 
-type CodeChefResponse = {
-  success: boolean;
-  profile?: string;
-  currentRating?: number;
-  highestRating?: number;
-  globalRank?: number;
-  countryRank?: number;
-  stars?: string;
-  problemsSolved?: number;
-  contestsParticipated?: number;
+type CodeChefAPIResponse = {
+  username?: string;
+  rating?: string;
+  stars?: number;
+  country?: string;
+  globalRank?: number | null;
+  countryRank?: number | null;
+  participation?: number | null;
+  contests?: unknown[];
 };
 
 export async function fetchCodechefData(handle: string): Promise<PlatformData> {
@@ -21,19 +20,22 @@ export async function fetchCodechefData(handle: string): Promise<PlatformData> {
 
   if (!res.ok) throw new Error(`CodeChef API failed: ${res.status}`);
 
-  const data: CodeChefResponse = await res.json();
+  const data: CodeChefAPIResponse = await res.json();
 
-  if (!data.success && !data.currentRating) {
+  if (!data.username && !data.rating) {
     throw new Error("CodeChef user not found");
   }
 
+  const rating = parseInt(data.rating || "0", 10) || 0;
+  const stars = data.stars ? `${data.stars}★` : null;
+
   return {
     handle,
-    rating: data.currentRating || 0,
-    maxRating: data.highestRating || data.currentRating || 0,
-    problemsSolved: data.problemsSolved || 0,
-    rank: data.stars || (data.globalRank ? `#${data.globalRank}` : null),
-    contestsCount: data.contestsParticipated || 0,
+    rating,
+    maxRating: rating,
+    problemsSolved: 0,
+    rank: stars || (data.globalRank ? `#${data.globalRank}` : null),
+    contestsCount: data.participation || 0,
     dailyActivity: {},
   };
 }
