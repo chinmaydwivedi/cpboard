@@ -107,7 +107,7 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
               {dropdownOpen && (
                 <div className="absolute right-0 mt-1.5 w-44 rounded-lg border border-border/60 bg-card shadow-lg py-1 z-50">
                   <Link
-                    href={`/u/${user.username}`}
+                    href="/profile"
                     onClick={() => setDropdownOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
                   >
@@ -167,6 +167,13 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
           {user && (
             <>
               <div className="border-t border-border/40 my-1" />
+              <Link
+                href="/profile"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <User className="h-3.5 w-3.5" /> Profile
+              </Link>
               <button
                 onClick={() => signOut({ callbackUrl: "/" })}
                 className="flex items-center gap-2 w-full px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-destructive transition-colors"

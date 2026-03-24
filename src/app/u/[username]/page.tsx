@@ -12,26 +12,21 @@ export default async function ProfilePage({
 }) {
   const { username } = await params;
 
-  let user;
-  try {
-    user = await prisma.user.findUnique({
-      where: { username },
-      include: {
-        university: true,
-        platformProfiles: {
-          orderBy: { platform: "asc" },
-        },
-        dailyActivities: {
-          where: {
-            date: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) },
-          },
-          orderBy: { date: "asc" },
-        },
+  const user = await prisma.user.findUnique({
+    where: { username },
+    include: {
+      university: true,
+      platformProfiles: {
+        orderBy: { platform: "asc" },
       },
-    });
-  } catch {
-    notFound();
-  }
+      dailyActivities: {
+        where: {
+          date: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) },
+        },
+        orderBy: { date: "asc" },
+      },
+    },
+  });
 
   if (!user) notFound();
 

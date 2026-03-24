@@ -3,6 +3,7 @@ import { Space_Grotesk, JetBrains_Mono, Instrument_Serif } from "next/font/googl
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Navbar } from "@/components/navbar";
+import { unstable_noStore as noStore } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Toaster } from "@/components/ui/sonner";
@@ -41,6 +42,7 @@ export default async function RootLayout({
   try {
     const session = await auth();
     if (session?.user?.email) {
+      noStore();
       const dbUser = await prisma.user.findUnique({
         where: { email: session.user.email },
         select: { name: true, username: true },
