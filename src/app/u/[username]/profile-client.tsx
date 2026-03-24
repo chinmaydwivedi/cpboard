@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Heatmap } from "@/components/heatmap";
 import { PlatformBadge } from "@/components/platform-badge";
 import { getCodeforcesRankColor, getCodeforcesRankTitle } from "@/lib/scoring";
-import { PLATFORM_LABELS } from "@/types";
 import type { HeatmapData } from "@/types";
 import type { Platform } from "@prisma/client";
 import { ExternalLink } from "lucide-react";
@@ -101,11 +100,16 @@ export function ProfileClient({
         <Heatmap data={heatmapData} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 sm:items-stretch">
         {profiles.map((profile) => (
-          <motion.div key={profile.platform} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            <div className={`rounded-lg border p-4 ${platformColor[profile.platform]}`}>
-              <div className="flex items-center justify-between mb-3">
+          <motion.div
+            key={profile.platform}
+            className="h-full min-h-0"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className={`flex h-full flex-col rounded-lg border p-4 ${platformColor[profile.platform]}`}>
+              <div className="flex items-center justify-between shrink-0 mb-3">
                 <PlatformBadge platform={profile.platform} />
                 <a
                   href={platformLinks[profile.platform](profile.handle)}
@@ -116,7 +120,7 @@ export function ProfileClient({
                   @{profile.handle} <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 flex-1 content-start">
                 <div>
                   <p className="text-[10px] text-muted-foreground">Solved</p>
                   <p className="text-lg font-mono font-bold">{profile.problemsSolved}</p>
@@ -140,13 +144,13 @@ export function ProfileClient({
                   <p className="text-lg font-mono font-bold">{profile.contestsCount}</p>
                 </div>
               </div>
-              {profile.platform === "CODEFORCES" && profile.rating > 0 && (
-                <div className="mt-3 pt-3 border-t border-border/30">
+              <div className="mt-3 flex min-h-11 shrink-0 items-center border-t border-border/30 pt-3">
+                {profile.platform === "CODEFORCES" && profile.rating > 0 ? (
                   <span className="text-xs font-medium" style={{ color: getCodeforcesRankColor(profile.rating) }}>
                     {getCodeforcesRankTitle(profile.rating)}
                   </span>
-                </div>
-              )}
+                ) : null}
+              </div>
             </div>
           </motion.div>
         ))}
