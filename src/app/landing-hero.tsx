@@ -30,8 +30,10 @@ const features = [
 
 export function LandingHero({
   stats,
+  isLoggedIn,
 }: {
   stats: { users: number; universities: number; profiles: number; totalSolved: number };
+  isLoggedIn: boolean;
 }) {
   return (
     <div>
@@ -138,13 +140,15 @@ export function LandingHero({
           <div className="rounded-lg border border-border/40 bg-card/60 backdrop-blur-sm p-10 text-center" data-tour="home-cta">
             <h2 className="font-heading text-2xl italic">Ready to compete?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Sign in with your university email to join the leaderboard.
+              {isLoggedIn
+                ? "Jump to your dashboard to track progress and sync your latest stats."
+                : "Sign in with your university email to join the leaderboard."}
             </p>
             <Link
-              href="/login"
+              href={isLoggedIn ? "/dashboard" : "/login"}
               className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
-              Join Now <ArrowRight className="h-3.5 w-3.5" />
+              {isLoggedIn ? "Go to Dashboard" : "Join Now"} <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>

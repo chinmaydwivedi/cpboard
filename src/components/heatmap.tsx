@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Flame, CalendarDays } from "lucide-react";
 const CELL = 11;
 const GAP = 3;
 const WEEKS = 52;
+const DAY_MS = 86400000;
 const DAYS = ["", "Mon", "", "Wed", "", "Fri", ""];
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -19,20 +20,22 @@ function intensity(count: number, isDark: boolean): string {
   return `fill-primary ${border}`;
 }
 
-function computeStats(data: HeatmapData, year: number) {
+function isoFromUtcTs(ts: number) {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
+function computeStats(data: HeatmapData, year: number, currentYear: number, todayUtcTs: number) {
   let activeDays = 0;
   let currentStreak = 0;
   let longestStreak = 0;
 
-  const start = new Date(year, 0, 1);
-  const end = year === new Date().getFullYear() ? new Date() : new Date(year, 11, 31);
-  const totalDays = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+  const start = Date.UTC(year, 0, 1);
+  const end = year === currentYear ? todayUtcTs : Date.UTC(year, 11, 31);
+  const totalDays = Math.floor((end - start) / DAY_MS) + 1;
 
   const sorted: boolean[] = [];
   for (let i = 0; i < totalDays; i++) {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    const key = d.toISOString().split("T")[0];
+    const key = isoFromUtcTs(start + i * DAY_MS);
     const active = (data[key]?.total || 0) > 0;
     sorted.push(active);
     if (active) activeDays++;
@@ -54,26 +57,30 @@ function computeStats(data: HeatmapData, year: number) {
   return { activeDays, currentStreak, longestStreak };
 }
 
-export function Heatmap({ data }: { data: HeatmapData }) {
-  const currentYear = new Date().getFullYear();
+export function Heatmap({ data, todayIso }: { data: HeatmapData; todayIso?: string }) {
+  const safeTodayIso =
+    todayIso && /^\d{4}-\d{2}-\d{2}$/.test(todayIso)
+      ? todayIso
+      : new Date().toISOString().slice(0, 10);
+  const todayUtcTs = Date.parse(`${safeTodayIso}T00:00:00.000Z`);
+  const currentYear = new Date(todayUtcTs).getUTCFullYear();
   const [year, setYear] = useState(currentYear);
 
   const { cells, months } = useMemo(() => {
     const isCurrentYear = year === currentYear;
-    const today = new Date();
 
-    let start: Date;
-    let endDate: Date;
+    let startUtcTs: number;
+    let endUtcTs: number;
 
     if (isCurrentYear) {
-      start = new Date(today);
-      start.setDate(start.getDate() - WEEKS * 7 - start.getDay());
-      endDate = today;
+      const weekday = new Date(todayUtcTs).getUTCDay();
+      startUtcTs = todayUtcTs - (WEEKS * 7 + weekday) * DAY_MS;
+      endUtcTs = todayUtcTs;
     } else {
-      start = new Date(year, 0, 1);
-      const dayOfWeek = start.getDay();
-      start.setDate(start.getDate() - dayOfWeek);
-      endDate = new Date(year, 11, 31);
+      const jan1UtcTs = Date.UTC(year, 0, 1);
+      const dayOfWeek = new Date(jan1UtcTs).getUTCDay();
+      startUtcTs = jan1UtcTs - dayOfWeek * DAY_MS;
+      endUtcTs = Date.UTC(year, 11, 31);
     }
 
     const cells: { x: number; y: number; date: string; count: number }[] = [];
@@ -83,17 +90,17 @@ export function Heatmap({ data }: { data: HeatmapData }) {
 
     for (let w = 0; w <= maxWeeks; w++) {
       for (let d = 0; d < 7; d++) {
-        const date = new Date(start);
-        date.setDate(date.getDate() + w * 7 + d);
-        if (date > endDate) continue;
-        if (!isCurrentYear && date.getFullYear() !== year) continue;
+        const dateUtcTs = startUtcTs + (w * 7 + d) * DAY_MS;
+        if (dateUtcTs > endUtcTs) continue;
+        const date = new Date(dateUtcTs);
+        if (!isCurrentYear && date.getUTCFullYear() !== year) continue;
 
-        const dateStr = date.toISOString().split("T")[0];
+        const dateStr = isoFromUtcTs(dateUtcTs);
         const entry = data[dateStr];
 
-        const monthKey = date.getFullYear() * 12 + date.getMonth();
+        const monthKey = date.getUTCFullYear() * 12 + date.getUTCMonth();
         if (d === 0 && monthKey !== prevMonth) {
-          months.push({ label: MONTH_NAMES[date.getMonth()], x: w * (CELL + GAP) + 28 });
+          months.push({ label: MONTH_NAMES[date.getUTCMonth()], x: w * (CELL + GAP) + 28 });
           prevMonth = monthKey;
         }
 
@@ -107,9 +114,12 @@ export function Heatmap({ data }: { data: HeatmapData }) {
     }
 
     return { cells, months };
-  }, [data, year, currentYear]);
+  }, [data, year, currentYear, todayUtcTs]);
 
-  const stats = useMemo(() => computeStats(data, year), [data, year]);
+  const stats = useMemo(
+    () => computeStats(data, year, currentYear, todayUtcTs),
+    [data, year, currentYear, todayUtcTs]
+  );
 
   const totalW = (WEEKS + 2) * (CELL + GAP) + 32;
   const totalH = 7 * (CELL + GAP) + 28;
@@ -197,9 +207,7 @@ export function Heatmap({ data }: { data: HeatmapData }) {
               strokeWidth={0.5}
               className={`${intensity(cell.count, true)} transition-all hover:stroke-primary hover:stroke-[1.5]`}
             >
-              <title>
-                {cell.count} submission{cell.count !== 1 ? "s" : ""} on {cell.date}
-              </title>
+              <title>{`${cell.count} submission${cell.count !== 1 ? "s" : ""} on ${cell.date}`}</title>
             </rect>
           ))}
 

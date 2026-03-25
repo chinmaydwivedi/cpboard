@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { DashboardClient } from "./dashboard-client";
 
 export default async function DashboardPage() {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayUtc = new Date(`${todayIso}T00:00:00.000Z`);
+  const oneYearAgo = new Date(todayUtc.getTime() - 365 * 24 * 60 * 60 * 1000);
   let session;
   try {
     session = await auth();
@@ -25,7 +28,7 @@ export default async function DashboardPage() {
       dailyActivities: {
         where: {
           date: {
-            gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+            gte: oneYearAgo,
           },
         },
         orderBy: { date: "asc" },
@@ -75,6 +78,7 @@ export default async function DashboardPage() {
         verified: p.verified,
       }))}
       heatmapData={heatmapData}
+      todayIso={todayIso}
       recentSyncs={user.syncLogs.map((s) => ({
         platform: s.platform,
         status: s.status,

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { LandingHero } from "./landing-hero";
 
 async function getStats() {
@@ -27,6 +27,14 @@ async function getStats() {
 
 export default async function HomePage() {
   const stats = await getStats();
+  let isLoggedIn = false;
 
-  return <LandingHero stats={stats} />;
+  try {
+    const session = await auth();
+    isLoggedIn = Boolean(session?.user?.email);
+  } catch {
+    // auth might not be available in every environment
+  }
+
+  return <LandingHero stats={stats} isLoggedIn={isLoggedIn} />;
 }

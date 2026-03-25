@@ -79,6 +79,7 @@ export function DashboardClient({
   user,
   profiles,
   heatmapData,
+  todayIso,
   recentSyncs,
 }: {
   user: {
@@ -91,6 +92,7 @@ export function DashboardClient({
   };
   profiles: ProfileData[];
   heatmapData: HeatmapData;
+  todayIso: string;
   recentSyncs: SyncLogEntry[];
 }) {
   const router = useRouter();
@@ -297,7 +299,7 @@ export function DashboardClient({
       </div>
 
       <div className="mb-6" data-tour="dash-heatmap">
-        <Heatmap data={heatmapData} />
+        <Heatmap data={heatmapData} todayIso={todayIso} />
       </div>
 
       <p className="text-[11px] text-muted-foreground font-medium mb-3">Platforms</p>

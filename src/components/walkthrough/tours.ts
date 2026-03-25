@@ -47,7 +47,8 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       element: SEL("home-cta"),
       popover: {
         title: "Get started",
-        description: "Sign in with your university email to create a profile, link handles, and appear on the leaderboard.",
+        description:
+          "Use this action to join with your university email, or jump back to your dashboard if you're already signed in.",
         side: "top",
       },
     },
