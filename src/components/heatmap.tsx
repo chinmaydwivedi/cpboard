@@ -86,7 +86,7 @@ export function Heatmap({ data, todayIso }: { data: HeatmapData; todayIso?: stri
 
     const cells: { x: number; y: number; date: string; count: number }[] = [];
     const months: { label: string; x: number }[] = [];
-    let prevMonth = -1;
+    const seenMonths = new Set<number>();
     const maxWeeks = isCurrentYear ? WEEKS : 53;
 
     for (let w = 0; w <= maxWeeks; w++) {
@@ -100,9 +100,14 @@ export function Heatmap({ data, todayIso }: { data: HeatmapData; todayIso?: stri
         const entry = data[dateStr];
 
         const monthKey = date.getUTCFullYear() * 12 + date.getUTCMonth();
-        if (monthKey !== prevMonth) {
-          months.push({ label: MONTH_NAMES[date.getUTCMonth()], x: w * (CELL + GAP) + GRID_LEFT });
-          prevMonth = monthKey;
+        if (!seenMonths.has(monthKey)) {
+          seenMonths.add(monthKey);
+          const x = w * (CELL + GAP) + GRID_LEFT;
+          const last = months[months.length - 1];
+
+          // Prevent month labels from visually colliding when two months start in the same/nearby column.
+          if (last && x - last.x < 24) months[months.length - 1] = { label: MONTH_NAMES[date.getUTCMonth()], x };
+          else months.push({ label: MONTH_NAMES[date.getUTCMonth()], x });
         }
 
         cells.push({
