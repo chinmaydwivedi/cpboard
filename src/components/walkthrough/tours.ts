@@ -198,6 +198,15 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       },
     },
     {
+      element: SEL("profile-platforms"),
+      popover: {
+        title: "Linked platforms",
+        description:
+          "Each card shows solved counts and ratings. On your own profile, you can remove a platform with the per-card Remove action.",
+        side: "top",
+      },
+    },
+    {
       element: SEL("profile-support"),
       popover: {
         title: "Support",

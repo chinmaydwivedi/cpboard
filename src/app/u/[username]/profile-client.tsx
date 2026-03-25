@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Heatmap } from "@/components/heatmap";
 import { PlatformBadge } from "@/components/platform-badge";
 import { getCodeforcesRankColor, getCodeforcesRankTitle } from "@/lib/scoring";
+import { PLATFORM_LABELS } from "@/types";
 import type { HeatmapData } from "@/types";
 import type { Platform } from "@prisma/client";
 import { ExternalLink, AlertTriangle, Mail, Trash2 } from "lucide-react";
@@ -64,6 +65,7 @@ export function ProfileClient({
   const router = useRouter();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [removingPlatform, setRemovingPlatform] = useState<Platform | null>(null);
   const bestRating = profiles.length > 0 ? Math.max(...profiles.map((p) => p.maxRating)) : 0;
 
   const handleDeleteAccount = async () => {
@@ -82,6 +84,29 @@ export function ProfileClient({
       setDeleting(false);
     } finally {
       router.refresh();
+    }
+  };
+
+  const handleRemovePlatform = async (platform: Platform) => {
+    if (!confirm(`Remove your ${PLATFORM_LABELS[platform]} profile from CPBoard?`)) return;
+    setRemovingPlatform(platform);
+    try {
+      const res = await fetch("/api/platforms/sync", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Failed to remove profile");
+        return;
+      }
+      toast.success(`${PLATFORM_LABELS[platform]} profile removed`);
+      router.refresh();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setRemovingPlatform(null);
     }
   };
 
@@ -196,7 +221,7 @@ export function ProfileClient({
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 sm:items-stretch">
+      <div className="grid gap-3 sm:grid-cols-2 sm:items-stretch" data-tour="profile-platforms">
         {profiles.map((profile) => (
           <motion.div
             key={profile.platform}
@@ -207,14 +232,27 @@ export function ProfileClient({
             <div className={`flex h-full flex-col rounded-lg border p-4 ${platformColor[profile.platform]}`}>
               <div className="flex items-center justify-between shrink-0 mb-3">
                 <PlatformBadge platform={profile.platform} />
-                <a
-                  href={platformLinks[profile.platform](profile.handle)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                >
-                  @{profile.handle} <ExternalLink className="h-3 w-3" />
-                </a>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={platformLinks[profile.platform](profile.handle)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    @{profile.handle} <ExternalLink className="h-3 w-3" />
+                  </a>
+                  {isOwner && (
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleRemovePlatform(profile.platform)}
+                      disabled={removingPlatform === profile.platform}
+                    >
+                      {removingPlatform === profile.platform ? "Removing..." : "Remove"}
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4 flex-1 content-start">
                 <div>
