@@ -8,7 +8,8 @@ const CELL = 11;
 const GAP = 3;
 const WEEKS = 52;
 const DAY_MS = 86400000;
-const DAYS = ["", "Mon", "", "Wed", "", "Fri", ""];
+const GRID_LEFT = 4;
+const GRID_TOP = 20;
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function intensity(count: number, isDark: boolean): string {
@@ -99,14 +100,14 @@ export function Heatmap({ data, todayIso }: { data: HeatmapData; todayIso?: stri
         const entry = data[dateStr];
 
         const monthKey = date.getUTCFullYear() * 12 + date.getUTCMonth();
-        if (d === 0 && monthKey !== prevMonth) {
-          months.push({ label: MONTH_NAMES[date.getUTCMonth()], x: w * (CELL + GAP) + 28 });
+        if (monthKey !== prevMonth) {
+          months.push({ label: MONTH_NAMES[date.getUTCMonth()], x: w * (CELL + GAP) + GRID_LEFT });
           prevMonth = monthKey;
         }
 
         cells.push({
-          x: w * (CELL + GAP) + 28,
-          y: d * (CELL + GAP) + 20,
+          x: w * (CELL + GAP) + GRID_LEFT,
+          y: d * (CELL + GAP) + GRID_TOP,
           date: dateStr,
           count: entry?.total || 0,
         });
@@ -180,19 +181,6 @@ export function Heatmap({ data, todayIso }: { data: HeatmapData; todayIso?: stri
               fontWeight={500}
             >
               {m.label}
-            </text>
-          ))}
-
-          {DAYS.map((label, i) => (
-            <text
-              key={i}
-              x={0}
-              y={i * (CELL + GAP) + 20 + CELL - 2}
-              className="fill-muted-foreground"
-              fontSize={9}
-              fontWeight={500}
-            >
-              {label}
             </text>
           ))}
 
