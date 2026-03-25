@@ -44,11 +44,8 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
   return (
     <header data-tour="site-header" className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <nav className="mx-auto flex h-14 max-w-5xl items-center justify-between px-5">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
-            <span className="text-[10px] font-black text-primary-foreground tracking-tight">CP</span>
-          </div>
-          <span className="font-semibold text-[15px] tracking-tight">Board</span>
+        <Link href="/" className="flex items-center">
+          <span className="font-semibold text-[15px] tracking-tight">CP Board</span>
         </Link>
 
         <div className="hidden md:flex items-center gap-0.5">
