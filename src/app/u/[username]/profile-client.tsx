@@ -1,13 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Heatmap } from "@/components/heatmap";
 import { PlatformBadge } from "@/components/platform-badge";
 import { getCodeforcesRankColor, getCodeforcesRankTitle } from "@/lib/scoring";
 import type { HeatmapData } from "@/types";
 import type { Platform } from "@prisma/client";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, AlertTriangle, Mail, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 type ProfileProps = {
   user: {
@@ -28,6 +33,9 @@ type ProfileProps = {
   }[];
   heatmapData: HeatmapData;
   totalSolved: number;
+  todayIso: string;
+  supportEmail: string;
+  isOwner: boolean;
 };
 
 const platformLinks: Record<Platform, (handle: string) => string> = {
@@ -49,12 +57,42 @@ export function ProfileClient({
   profiles,
   heatmapData,
   totalSolved,
+  todayIso,
+  supportEmail,
+  isOwner,
 }: ProfileProps) {
+  const router = useRouter();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const bestRating = profiles.length > 0 ? Math.max(...profiles.map((p) => p.maxRating)) : 0;
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/account/delete", { method: "DELETE" });
+      if (!res.ok) {
+        toast.error("Failed to delete account");
+        setDeleting(false);
+        return;
+      }
+      toast.success("Account deleted");
+      await signOut({ callbackUrl: "/" });
+    } catch {
+      toast.error("Network error");
+      setDeleting(false);
+    } finally {
+      router.refresh();
+    }
+  };
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-start gap-4">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8 flex items-start gap-4"
+        data-tour="profile-header"
+      >
         <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary shrink-0 overflow-hidden">
           {user.avatarUrl ? (
             <img src={user.avatarUrl} alt={user.name || user.username} className="h-full w-full object-cover" />
@@ -96,8 +134,66 @@ export function ProfileClient({
         </div>
       </div>
 
-      <div className="mb-6">
-        <Heatmap data={heatmapData} />
+      <div className="mb-6" data-tour="profile-heatmap">
+        <Heatmap data={heatmapData} todayIso={todayIso} />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 mb-6">
+        <div className="rounded-lg border border-border/60 p-4" data-tour="profile-support">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Mail className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium">Need support or profile review?</p>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            For account help, feedback, or profile review requests, please email support and include your username for faster assistance.
+          </p>
+          <a
+            href={`mailto:${supportEmail}?subject=CPBoard%20Support%20Request`}
+            className="inline-flex mt-3 items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+          >
+            {supportEmail} <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+        {isOwner && (
+          <div className="rounded-lg border border-destructive/20 p-4" data-tour="profile-danger">
+            <div className="flex items-center gap-2 mb-1.5">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <p className="text-sm font-medium text-destructive">Danger Zone</p>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Permanently remove your account and all related data. This action cannot be undone.
+            </p>
+            {!showDeleteConfirm ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Account
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting..." : "Yes, delete my account"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 sm:items-stretch">

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfileClient } from "./profile-client";
 import type { HeatmapData } from "@/types";
@@ -10,6 +11,18 @@ export default async function ProfilePage({
 }: {
   params: Promise<{ username: string }>;
 }) {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayUtc = new Date(`${todayIso}T00:00:00.000Z`);
+  const oneYearAgo = new Date(todayUtc.getTime() - 365 * 24 * 60 * 60 * 1000);
+
+  let viewerEmail: string | null = null;
+  try {
+    const session = await auth();
+    viewerEmail = session?.user?.email ?? null;
+  } catch {
+    viewerEmail = null;
+  }
+
   const { username } = await params;
 
   const user = await prisma.user.findUnique({
@@ -21,7 +34,7 @@ export default async function ProfilePage({
       },
       dailyActivities: {
         where: {
-          date: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) },
+          date: { gte: oneYearAgo },
         },
         orderBy: { date: "asc" },
       },
@@ -68,6 +81,9 @@ export default async function ProfilePage({
       }))}
       heatmapData={heatmapData}
       totalSolved={totalSolved}
+      todayIso={todayIso}
+      supportEmail="chinmaydhardwivedi@gmail.com"
+      isOwner={viewerEmail === user.email}
     />
   );
 }

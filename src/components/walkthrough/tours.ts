@@ -1,6 +1,6 @@
 import type { DriveStep } from "driver.js";
 
-export type TourId = "home" | "leaderboard" | "universityBoard" | "cpRankings" | "dashboard";
+export type TourId = "home" | "leaderboard" | "universityBoard" | "cpRankings" | "dashboard" | "publicProfile";
 
 const SEL = (name: string) => `[data-tour="${name}"]`;
 
@@ -179,6 +179,41 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       },
     },
   ],
+  publicProfile: [
+    navStep,
+    {
+      element: SEL("profile-header"),
+      popover: {
+        title: "Profile overview",
+        description: "View the user summary, username, university tag, and join date.",
+        side: "bottom",
+      },
+    },
+    {
+      element: SEL("profile-heatmap"),
+      popover: {
+        title: "Activity heatmap",
+        description: "Recent coding activity shown as a contribution-style calendar.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("profile-support"),
+      popover: {
+        title: "Support",
+        description: "Need account help or a profile review? Use this support contact.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("profile-danger"),
+      popover: {
+        title: "Account deletion",
+        description: "If this is your own profile, you can permanently delete your account here.",
+        side: "top",
+      },
+    },
+  ],
 };
 
 export function tourIdForPathname(pathname: string): TourId | null {
@@ -187,5 +222,6 @@ export function tourIdForPathname(pathname: string): TourId | null {
   if (/^\/leaderboard\/[^/]+$/.test(pathname)) return "universityBoard";
   if (pathname === "/cp-rankings") return "cpRankings";
   if (pathname === "/dashboard") return "dashboard";
+  if (/^\/u\/[^/]+$/.test(pathname)) return "publicProfile";
   return null;
 }

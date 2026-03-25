@@ -3,18 +3,25 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  const pesu = await prisma.university.upsert({
-    where: { shortName: "PESU" },
-    update: {},
-    create: {
-      name: "PES University",
-      shortName: "PESU",
-      emailDomain: "pesu.pes.edu",
-    },
-  });
+  const universities = [
+    { name: "PES University", shortName: "PESU", emailDomain: "pesu.pes.edu" },
+    { name: "Dayananda Sagar University", shortName: "DSU", emailDomain: "dsu.edu.in" },
+    { name: "Jain University", shortName: "JAIN", emailDomain: "jainuniversity.ac.in" },
+  ];
 
-  console.log("Seeded university:", pesu.name, `(${pesu.shortName})`);
-  console.log(`Email domain: @${pesu.emailDomain}`);
+  for (const university of universities) {
+    const seeded = await prisma.university.upsert({
+      where: { shortName: university.shortName },
+      update: {
+        name: university.name,
+        emailDomain: university.emailDomain,
+      },
+      create: university,
+    });
+
+    console.log("Seeded university:", seeded.name, `(${seeded.shortName})`);
+    console.log(`Email domain: @${seeded.emailDomain}`);
+  }
 }
 
 main()
