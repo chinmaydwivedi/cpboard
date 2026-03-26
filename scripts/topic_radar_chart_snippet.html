@@ -55,8 +55,21 @@
       ];
 
       const scaleMarkers = [5, 10, 20, 30, 100, 200, 300];
-      const maxCount = Math.max(1, ...topicFrequencies.map((x) => x.count));
-      const values = topicFrequencies.map((x) => (x.count / maxCount) * scaleMarkers.length);
+      const toScalePosition = (count) => {
+        const c = Math.max(0, Number(count) || 0);
+        if (c <= 0) return 0;
+        if (c <= scaleMarkers[0]) return c / scaleMarkers[0];
+        for (let i = 0; i < scaleMarkers.length - 1; i++) {
+          const lo = scaleMarkers[i];
+          const hi = scaleMarkers[i + 1];
+          if (c <= hi) {
+            const t = (Math.log10(c) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo));
+            return i + 1 + t;
+          }
+        }
+        return scaleMarkers.length;
+      };
+      const values = topicFrequencies.map((x) => toScalePosition(x.count));
 
       new Chart(document.getElementById("topicRadar"), {
         type: "radar",

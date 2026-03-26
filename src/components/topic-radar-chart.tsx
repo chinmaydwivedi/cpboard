@@ -18,6 +18,25 @@ Chart.register(RadarController, RadialLinearScale, PointElement, LineElement, Fi
 const SCALE_MARKERS = [5, 10, 20, 30, 100, 200, 300];
 const SCALE_MAX = SCALE_MARKERS.length;
 
+function toScalePosition(count: number): number {
+  const c = Math.max(0, count);
+  if (c <= 0) return 0;
+  if (c <= SCALE_MARKERS[0]) return c / SCALE_MARKERS[0];
+
+  for (let i = 0; i < SCALE_MARKERS.length - 1; i++) {
+    const lo = SCALE_MARKERS[i];
+    const hi = SCALE_MARKERS[i + 1];
+    if (c <= hi) {
+      // Log interpolation gives a more natural spread across non-linear marker jumps.
+      const t = (Math.log10(c) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo));
+      return i + 1 + t;
+    }
+  }
+
+  // Cap values above the last marker at the outer ring.
+  return SCALE_MAX;
+}
+
 export function TopicRadarChart({
   data,
   codeforcesHandle,
@@ -30,11 +49,7 @@ export function TopicRadarChart({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { resolvedTheme } = useTheme();
 
-  const maxCount = useMemo(() => Math.max(1, ...data.map((d) => d.count)), [data]);
-  const scaledData = useMemo(
-    () => data.map((d) => (d.count / maxCount) * SCALE_MAX),
-    [data, maxCount]
-  );
+  const scaledData = useMemo(() => data.map((d) => toScalePosition(d.count)), [data]);
 
   useEffect(() => {
     if (!canvasRef.current || data.length === 0) return;
