@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { DashboardClient } from "./dashboard-client";
+import { fetchCombinedTopicRadar } from "@/lib/topic-radar";
 
 export default async function DashboardPage() {
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -53,6 +54,16 @@ export default async function DashboardPage() {
     heatmapData[dateStr].byPlatform[activity.platform] = activity.submissionCount;
   }
 
+  const codeforcesHandle =
+    user.platformProfiles.find((p) => p.platform === "CODEFORCES")?.handle || null;
+  const leetcodeHandle =
+    user.platformProfiles.find((p) => p.platform === "LEETCODE")?.handle || null;
+  const topicRadar = await fetchCombinedTopicRadar({
+    codeforcesHandle,
+    leetcodeUsername: leetcodeHandle,
+    topN: 12,
+  });
+
   return (
     <DashboardClient
       user={{
@@ -79,6 +90,8 @@ export default async function DashboardPage() {
       }))}
       heatmapData={heatmapData}
       todayIso={todayIso}
+      topicRadar={topicRadar}
+      topicHandles={{ codeforces: codeforcesHandle, leetcode: leetcodeHandle }}
       recentSyncs={user.syncLogs.map((s) => ({
         platform: s.platform,
         status: s.status,

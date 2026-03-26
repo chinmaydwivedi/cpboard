@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heatmap } from "@/components/heatmap";
+import { TopicRadarChart } from "@/components/topic-radar-chart";
 import { PLATFORM_LABELS } from "@/types";
 import type { HeatmapData } from "@/types";
+import type { TopicRadarPoint } from "@/lib/topic-radar";
 import type { Platform, SyncStatus } from "@prisma/client";
 import { toast } from "sonner";
 import {
@@ -80,6 +82,8 @@ export function DashboardClient({
   profiles,
   heatmapData,
   todayIso,
+  topicRadar,
+  topicHandles,
   recentSyncs,
 }: {
   user: {
@@ -93,6 +97,8 @@ export function DashboardClient({
   profiles: ProfileData[];
   heatmapData: HeatmapData;
   todayIso: string;
+  topicRadar: TopicRadarPoint[];
+  topicHandles: { codeforces: string | null; leetcode: string | null };
   recentSyncs: SyncLogEntry[];
 }) {
   const router = useRouter();
@@ -300,6 +306,14 @@ export function DashboardClient({
 
       <div className="mb-6" data-tour="dash-heatmap">
         <Heatmap data={heatmapData} todayIso={todayIso} />
+      </div>
+
+      <div className="mb-6" data-tour="dash-topic-radar">
+        <TopicRadarChart
+          data={topicRadar}
+          codeforcesHandle={topicHandles.codeforces}
+          leetcodeHandle={topicHandles.leetcode}
+        />
       </div>
 
       <p className="text-[11px] text-muted-foreground font-medium mb-3">Platforms</p>

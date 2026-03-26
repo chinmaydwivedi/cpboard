@@ -163,6 +163,15 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       },
     },
     {
+      element: SEL("dash-topic-radar"),
+      popover: {
+        title: "Topic radar",
+        description:
+          "Combined Codeforces + LeetCode solved-topic frequencies, shown on a log-style radar scale for quick strength comparison.",
+        side: "top",
+      },
+    },
+    {
       element: SEL("dash-platforms"),
       popover: {
         title: "Platforms",
