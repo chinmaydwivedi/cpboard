@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { Trophy, Zap, LayoutDashboard, Menu, X, LogOut, User, CircleHelp } from "lucide-react";
+import { Trophy, Zap, LayoutDashboard, Menu, X, LogOut, User, CircleHelp, RefreshCw } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import {
   DropdownMenu,
@@ -23,9 +23,11 @@ const links = [
 ];
 
 export function Navbar({ user }: { user?: { name?: string | null; username?: string } | null }) {
+  const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,6 +41,42 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
   }, []);
 
   const pageTourId = tourIdForPathname(pathname);
+
+  const handleSyncAll = async () => {
+    if (!user || syncingAll) return;
+    setSyncingAll(true);
+    const toastId = toast.loading("Syncing all your platforms... go solve another question meanwhile 😄");
+
+    try {
+      const res = await fetch("/api/platforms/sync-all", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to sync all platforms", { id: toastId });
+        return;
+      }
+
+      if (data.failed > 0) {
+        const failedPlatforms = (data.results || [])
+          .filter((r: { success: boolean; platform: string }) => !r.success)
+          .map((r: { platform: string }) => r.platform)
+          .join(", ");
+        toast.warning(`Synced ${data.successful}/${data.total} platforms`, {
+          id: toastId,
+          description: failedPlatforms ? `Failed: ${failedPlatforms}` : "Some platforms failed to sync.",
+        });
+      } else {
+        toast.success(`Synced all ${data.total} platforms successfully`, {
+          id: toastId,
+          description: "Go solve another question while the leaderboard catches up.",
+        });
+      }
+      router.refresh();
+    } catch {
+      toast.error("Network error while syncing", { id: toastId });
+    } finally {
+      setSyncingAll(false);
+    }
+  };
 
   return (
     <header data-tour="site-header" className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
@@ -68,6 +106,17 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
         </div>
 
         <div className="flex items-center gap-2">
+          {user && (
+            <button
+              onClick={handleSyncAll}
+              disabled={syncingAll}
+              className="hidden sm:inline-flex items-center justify-center rounded-md border border-border/60 p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors outline-none disabled:opacity-60"
+              aria-label="Sync all linked platforms"
+              title="Sync all linked platforms"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncingAll ? "animate-spin" : ""}`} />
+            </button>
+          )}
           {pageTourId && (
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -137,6 +186,18 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
       </nav>
       {mobileOpen && (
         <div className="md:hidden border-t border-border/40 bg-background px-5 py-2">
+          {user && (
+            <button
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                handleSyncAll();
+              }}
+              className="flex items-center gap-2 w-full px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${syncingAll ? "animate-spin" : ""}`} /> Sync all platforms
+            </button>
+          )}
           {pageTourId && (
             <button
               type="button"

@@ -9,7 +9,7 @@ const navStep: DriveStep = {
   popover: {
     title: "Site navigation",
     description:
-      "Open Leaderboard, CP Rankings (Codeforces-focused), and Dashboard (when signed in). Use the account menu and tour help on the right.",
+      "Open Leaderboard, CP Rankings (Codeforces-focused), and Dashboard (when signed in). On the right, use Sync All to refresh every linked platform and Tour for guided walkthroughs.",
     side: "bottom",
     align: "center",
   },
