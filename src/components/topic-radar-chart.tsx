@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { useTheme } from "next-themes";
 import {
   Chart,
   Filler,
@@ -15,10 +16,6 @@ import type { TopicRadarPoint } from "@/lib/topic-radar";
 
 Chart.register(RadarController, RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
-function toLogValue(count: number): number {
-  return Math.log10(Math.max(1, count));
-}
-
 export function TopicRadarChart({
   data,
   codeforcesHandle,
@@ -29,15 +26,36 @@ export function TopicRadarChart({
   leetcodeHandle?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { resolvedTheme } = useTheme();
 
-  const axisMax = useMemo(() => {
-    if (data.length === 0) return 3;
-    const maxLog = Math.max(...data.map((d) => toLogValue(d.count)));
-    return Math.max(3, Math.ceil(maxLog));
-  }, [data]);
+  const maxCount = useMemo(() => Math.max(30, ...data.map((d) => d.count)), [data]);
+  const scaledData = useMemo(
+    () => data.map((d) => Math.max(1, Math.round((d.count / maxCount) * 30))),
+    [data, maxCount]
+  );
 
   useEffect(() => {
     if (!canvasRef.current || data.length === 0) return;
+    const isDark = resolvedTheme !== "light";
+    const colors = isDark
+      ? {
+          fill: "rgba(251, 113, 133, 0.24)",
+          border: "rgba(251, 113, 133, 0.95)",
+          point: "rgba(254, 205, 211, 0.95)",
+          label: "rgba(255,255,255,0.92)",
+          tick: "rgba(255,255,255,0.75)",
+          grid: "rgba(255,255,255,0.20)",
+          angle: "rgba(255,255,255,0.30)",
+        }
+      : {
+          fill: "rgba(244, 63, 94, 0.18)",
+          border: "rgba(225, 29, 72, 0.95)",
+          point: "rgba(159, 18, 57, 0.95)",
+          label: "rgba(15,23,42,0.88)",
+          tick: "rgba(51,65,85,0.82)",
+          grid: "rgba(15,23,42,0.16)",
+          angle: "rgba(15,23,42,0.24)",
+        };
 
     const chart = new Chart(canvasRef.current, {
       type: "radar",
@@ -46,12 +64,12 @@ export function TopicRadarChart({
         datasets: [
           {
             label: "Solved Topic Frequency",
-            data: data.map((d) => toLogValue(d.count)),
-            backgroundColor: "rgba(255, 210, 84, 0.36)",
-            borderColor: "#ffd45a",
+            data: scaledData,
+            backgroundColor: colors.fill,
+            borderColor: colors.border,
             borderWidth: 2,
-            pointBackgroundColor: "#ffe28a",
-            pointBorderColor: "#ffd45a",
+            pointBackgroundColor: colors.point,
+            pointBorderColor: colors.border,
             pointBorderWidth: 1,
             pointRadius: 2.5,
           },
@@ -75,27 +93,26 @@ export function TopicRadarChart({
         scales: {
           r: {
             min: 0,
-            max: axisMax,
+            max: 30,
             ticks: {
-              stepSize: 1,
-              color: "rgba(255,255,255,0.95)",
+              stepSize: 5,
+              color: colors.tick,
               backdropColor: "transparent",
               callback: (tickValue) => {
                 const value = Number(tickValue);
-                if (!Number.isFinite(value) || value < 0 || value > axisMax) return "";
-                return `${Math.round(10 ** value)}`;
+                return [5, 10, 20, 30].includes(value) ? `${value}` : "";
               },
             },
             angleLines: {
-              color: "rgba(255,255,255,0.45)",
+              color: colors.angle,
               lineWidth: 1,
             },
             grid: {
-              color: "rgba(255,255,255,0.3)",
+              color: colors.grid,
               lineWidth: 1,
             },
             pointLabels: {
-              color: "rgba(255,255,255,0.95)",
+              color: colors.label,
               font: { size: 11, weight: 500 },
             },
           },
@@ -104,24 +121,24 @@ export function TopicRadarChart({
     });
 
     return () => chart.destroy();
-  }, [axisMax, data]);
+  }, [data, resolvedTheme, scaledData]);
 
   return (
-    <div className="rounded-lg border border-[#21334f] bg-[#020816] p-4">
+    <div className="rounded-lg border border-border/40 bg-card/50 p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-white">Topic Radar (Codeforces + LeetCode)</p>
-        <p className="text-[11px] text-white/70">Radial scale is log-mapped: 1, 10, 100, 1000...</p>
+        <p className="text-sm font-semibold text-foreground">Topic Radar (Codeforces + LeetCode)</p>
+        <p className="text-[11px] text-muted-foreground">Scale markers: 5, 10, 20, 30</p>
       </div>
 
       {(codeforcesHandle || leetcodeHandle) && (
-        <p className="mb-3 text-[11px] text-white/60">
+        <p className="mb-3 text-[11px] text-muted-foreground">
           {codeforcesHandle ? `CF: ${codeforcesHandle}` : "CF: not linked"} ·{" "}
           {leetcodeHandle ? `LC: ${leetcodeHandle}` : "LC: not linked"}
         </p>
       )}
 
       {data.length === 0 ? (
-        <div className="rounded-md border border-white/10 bg-black/25 p-4 text-xs text-white/70">
+        <div className="rounded-md border border-border/40 bg-muted/20 p-4 text-xs text-muted-foreground">
           No topic data yet. Link and sync your Codeforces and LeetCode profiles to see the radar.
         </div>
       ) : (

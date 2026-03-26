@@ -37,7 +37,7 @@
   <body>
     <div class="wrap">
       <h2>Codeforces + LeetCode Topic Radar</h2>
-      <p>Pseudo-log radial scale ticks: 1, 10, 100, 1000</p>
+      <p>Scale markers: 5, 10, 20, 30</p>
       <canvas id="topicRadar"></canvas>
     </div>
 
@@ -54,9 +54,8 @@
         { topic: "String", count: 31 },
       ];
 
-      const toLog = (n) => Math.log10(Math.max(1, n));
-      const values = topicFrequencies.map((x) => toLog(x.count));
-      const axisMax = Math.max(3, Math.ceil(Math.max(...values, 0)));
+      const maxCount = Math.max(30, ...topicFrequencies.map((x) => x.count));
+      const values = topicFrequencies.map((x) => Math.max(1, Math.round((x.count / maxCount) * 30)));
 
       new Chart(document.getElementById("topicRadar"), {
         type: "radar",
@@ -66,11 +65,11 @@
             {
               label: "Solved Topic Frequency",
               data: values,
-              backgroundColor: "rgba(255, 210, 84, 0.36)",
-              borderColor: "#ffd45a",
+              backgroundColor: "rgba(251, 113, 133, 0.24)",
+              borderColor: "rgba(251, 113, 133, 0.95)",
               borderWidth: 2,
-              pointBackgroundColor: "#ffe28a",
-              pointBorderColor: "#ffd45a",
+              pointBackgroundColor: "rgba(254, 205, 211, 0.95)",
+              pointBorderColor: "rgba(251, 113, 133, 0.95)",
               pointRadius: 2.5,
             },
           ],
@@ -89,12 +88,12 @@
           scales: {
             r: {
               min: 0,
-              max: axisMax,
+              max: 30,
               ticks: {
-                stepSize: 1,
+                stepSize: 5,
                 color: "rgba(255,255,255,0.95)",
                 backdropColor: "transparent",
-                callback: (v) => `${Math.round(10 ** Number(v))}`,
+                callback: (v) => ([5, 10, 20, 30].includes(Number(v)) ? `${v}` : ""),
               },
               grid: { color: "rgba(255,255,255,0.3)" },
               angleLines: { color: "rgba(255,255,255,0.45)" },

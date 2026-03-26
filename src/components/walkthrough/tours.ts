@@ -167,7 +167,7 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       popover: {
         title: "Topic radar",
         description:
-          "Combined Codeforces + LeetCode solved-topic frequencies, shown on a log-style radar scale for quick strength comparison.",
+          "Combined Codeforces + LeetCode solved-topic frequencies, scaled to a 5/10/20/30 radar for quick strength comparison.",
         side: "top",
       },
     },
