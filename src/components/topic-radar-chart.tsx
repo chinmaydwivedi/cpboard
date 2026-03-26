@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { useTheme } from "next-themes";
 import {
   Chart,
   Filler,
@@ -47,32 +46,19 @@ export function TopicRadarChart({
   leetcodeHandle?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { resolvedTheme } = useTheme();
-
   const scaledData = useMemo(() => data.map((d) => toScalePosition(d.count)), [data]);
 
   useEffect(() => {
     if (!canvasRef.current || data.length === 0) return;
-    const isDark = resolvedTheme !== "light";
-    const colors = isDark
-      ? {
-          fill: "rgba(251, 113, 133, 0.24)",
-          border: "rgba(251, 113, 133, 0.95)",
-          point: "rgba(254, 205, 211, 0.95)",
-          label: "rgba(255,255,255,0.92)",
-          tick: "rgba(255,255,255,0.78)",
-          grid: "rgba(255,255,255,0.20)",
-          angle: "rgba(255,255,255,0.30)",
-        }
-      : {
-          fill: "rgba(244, 63, 94, 0.18)",
-          border: "rgba(225, 29, 72, 0.95)",
-          point: "rgba(159, 18, 57, 0.95)",
-          label: "rgba(15,23,42,0.88)",
-          tick: "rgba(30,41,59,0.85)",
-          grid: "rgba(15,23,42,0.16)",
-          angle: "rgba(15,23,42,0.24)",
-        };
+    const colors = {
+      fill: "rgba(251, 113, 133, 0.24)",
+      border: "rgba(251, 113, 133, 0.95)",
+      point: "rgba(254, 205, 211, 0.95)",
+      label: "rgba(255,255,255,0.92)",
+      tick: "rgba(255,255,255,0.78)",
+      grid: "rgba(255,255,255,0.20)",
+      angle: "rgba(255,255,255,0.30)",
+    };
 
     const chart = new Chart(canvasRef.current, {
       type: "radar",
@@ -139,7 +125,7 @@ export function TopicRadarChart({
     });
 
     return () => chart.destroy();
-  }, [data, resolvedTheme, scaledData]);
+  }, [data, scaledData]);
 
   return (
     <div className="rounded-lg border border-border/80 bg-card/60 p-4">

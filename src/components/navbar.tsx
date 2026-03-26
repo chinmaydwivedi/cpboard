@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { ThemeToggle } from "./theme-toggle";
 import { cn } from "@/lib/utils";
 import { Trophy, Zap, LayoutDashboard, Menu, X, LogOut, User, CircleHelp } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
@@ -89,7 +88,6 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <ThemeToggle />
           {user ? (
             <div className="relative" ref={dropdownRef}>
               <button
