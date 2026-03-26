@@ -15,6 +15,8 @@ import {
 import type { TopicRadarPoint } from "@/lib/topic-radar";
 
 Chart.register(RadarController, RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
+const SCALE_MARKERS = [5, 10, 20, 30, 100, 200, 300];
+const SCALE_MAX = SCALE_MARKERS.length;
 
 export function TopicRadarChart({
   data,
@@ -28,9 +30,9 @@ export function TopicRadarChart({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { resolvedTheme } = useTheme();
 
-  const maxCount = useMemo(() => Math.max(30, ...data.map((d) => d.count)), [data]);
+  const maxCount = useMemo(() => Math.max(1, ...data.map((d) => d.count)), [data]);
   const scaledData = useMemo(
-    () => data.map((d) => Math.max(1, Math.round((d.count / maxCount) * 30))),
+    () => data.map((d) => (d.count / maxCount) * SCALE_MAX),
     [data, maxCount]
   );
 
@@ -43,7 +45,7 @@ export function TopicRadarChart({
           border: "rgba(251, 113, 133, 0.95)",
           point: "rgba(254, 205, 211, 0.95)",
           label: "rgba(255,255,255,0.92)",
-          tick: "rgba(255,255,255,0.75)",
+          tick: "rgba(255,255,255,0.78)",
           grid: "rgba(255,255,255,0.20)",
           angle: "rgba(255,255,255,0.30)",
         }
@@ -52,7 +54,7 @@ export function TopicRadarChart({
           border: "rgba(225, 29, 72, 0.95)",
           point: "rgba(159, 18, 57, 0.95)",
           label: "rgba(15,23,42,0.88)",
-          tick: "rgba(51,65,85,0.82)",
+          tick: "rgba(30,41,59,0.85)",
           grid: "rgba(15,23,42,0.16)",
           angle: "rgba(15,23,42,0.24)",
         };
@@ -93,14 +95,15 @@ export function TopicRadarChart({
         scales: {
           r: {
             min: 0,
-            max: 30,
+            max: SCALE_MAX,
             ticks: {
-              stepSize: 5,
+              stepSize: 1,
               color: colors.tick,
               backdropColor: "transparent",
               callback: (tickValue) => {
                 const value = Number(tickValue);
-                return [5, 10, 20, 30].includes(value) ? `${value}` : "";
+                if (!Number.isInteger(value) || value < 1 || value > SCALE_MAX) return "";
+                return `${SCALE_MARKERS[value - 1]}`;
               },
             },
             angleLines: {
@@ -124,10 +127,10 @@ export function TopicRadarChart({
   }, [data, resolvedTheme, scaledData]);
 
   return (
-    <div className="rounded-lg border border-border/40 bg-card/50 p-4">
+    <div className="rounded-lg border border-border/80 bg-card/60 p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-foreground">Topic Radar (Codeforces + LeetCode)</p>
-        <p className="text-[11px] text-muted-foreground">Scale markers: 5, 10, 20, 30</p>
+        <p className="text-[11px] text-muted-foreground">Scale markers: 5, 10, 20, 30, 100, 200, 300</p>
       </div>
 
       {(codeforcesHandle || leetcodeHandle) && (

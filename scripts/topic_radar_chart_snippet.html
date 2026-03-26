@@ -37,7 +37,7 @@
   <body>
     <div class="wrap">
       <h2>Codeforces + LeetCode Topic Radar</h2>
-      <p>Scale markers: 5, 10, 20, 30</p>
+      <p>Scale markers: 5, 10, 20, 30, 100, 200, 300</p>
       <canvas id="topicRadar"></canvas>
     </div>
 
@@ -54,8 +54,9 @@
         { topic: "String", count: 31 },
       ];
 
-      const maxCount = Math.max(30, ...topicFrequencies.map((x) => x.count));
-      const values = topicFrequencies.map((x) => Math.max(1, Math.round((x.count / maxCount) * 30)));
+      const scaleMarkers = [5, 10, 20, 30, 100, 200, 300];
+      const maxCount = Math.max(1, ...topicFrequencies.map((x) => x.count));
+      const values = topicFrequencies.map((x) => (x.count / maxCount) * scaleMarkers.length);
 
       new Chart(document.getElementById("topicRadar"), {
         type: "radar",
@@ -88,12 +89,17 @@
           scales: {
             r: {
               min: 0,
-              max: 30,
+              max: scaleMarkers.length,
               ticks: {
-                stepSize: 5,
+                stepSize: 1,
                 color: "rgba(255,255,255,0.95)",
                 backdropColor: "transparent",
-                callback: (v) => ([5, 10, 20, 30].includes(Number(v)) ? `${v}` : ""),
+                callback: (v) => {
+                  const idx = Number(v);
+                  return Number.isInteger(idx) && idx >= 1 && idx <= scaleMarkers.length
+                    ? `${scaleMarkers[idx - 1]}`
+                    : "";
+                },
               },
               grid: { color: "rgba(255,255,255,0.3)" },
               angleLines: { color: "rgba(255,255,255,0.45)" },
