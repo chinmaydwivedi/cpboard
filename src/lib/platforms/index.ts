@@ -29,35 +29,61 @@ export async function syncUserPlatform(
   const { prisma } = await import("@/lib/prisma");
 
   try {
+    const existingProfile = await prisma.platformProfile.findUnique({
+      where: { userId_platform: { userId, platform } },
+      select: {
+        rating: true,
+        maxRating: true,
+        problemsSolved: true,
+        rank: true,
+        contestsCount: true,
+      },
+    });
+
     const data = await fetchPlatformData(platform, handle);
+    const mergedData: PlatformData = {
+      ...data,
+      rating:
+        data.rating > 0 ? data.rating : (existingProfile?.rating ?? data.rating),
+      maxRating: Math.max(data.maxRating, existingProfile?.maxRating ?? 0),
+      problemsSolved:
+        data.problemsSolved > 0
+          ? data.problemsSolved
+          : (existingProfile?.problemsSolved ?? data.problemsSolved),
+      rank: data.rank || existingProfile?.rank || null,
+      contestsCount:
+        data.contestsCount > 0
+          ? data.contestsCount
+          : (existingProfile?.contestsCount ?? data.contestsCount),
+    };
 
     await prisma.platformProfile.upsert({
       where: { userId_platform: { userId, platform } },
       create: {
         userId,
         platform,
-        handle: data.handle,
-        rating: data.rating,
-        maxRating: data.maxRating,
-        problemsSolved: data.problemsSolved,
-        rank: data.rank,
-        contestsCount: data.contestsCount,
+        handle: mergedData.handle,
+        rating: mergedData.rating,
+        maxRating: mergedData.maxRating,
+        problemsSolved: mergedData.problemsSolved,
+        rank: mergedData.rank,
+        contestsCount: mergedData.contestsCount,
         lastSynced: new Date(),
         verified: true,
       },
       update: {
-        handle: data.handle,
-        rating: data.rating,
-        maxRating: data.maxRating,
-        problemsSolved: data.problemsSolved,
-        rank: data.rank,
-        contestsCount: data.contestsCount,
+        handle: mergedData.handle,
+        rating: mergedData.rating,
+        maxRating: mergedData.maxRating,
+        problemsSolved: mergedData.problemsSolved,
+        rank: mergedData.rank,
+        contestsCount: mergedData.contestsCount,
         lastSynced: new Date(),
         verified: true,
       },
     });
 
-    const activityEntries = Object.entries(data.dailyActivity);
+    const activityEntries = Object.entries(mergedData.dailyActivity);
     if (activityEntries.length > 0) {
       const last365 = activityEntries
         .filter(([dateStr]) => {
@@ -94,7 +120,7 @@ export async function syncUserPlatform(
       data: { userId, platform, status: "SUCCESS" },
     });
 
-    return data;
+    return mergedData;
   } catch (error) {
     await prisma.syncLog.create({
       data: {

@@ -24,18 +24,35 @@ function parseCount(value: unknown): number | null {
   return null;
 }
 
+function parseSolvedFromProfileHtml(html: string): number | null {
+  const patterns = [
+    /Total Problems Solved:\s*([0-9,]+)/i,
+    /Fully Solved[^0-9]*([0-9,]+)/i,
+    /"problemsSolved"\s*:\s*"?([0-9,]+)"?/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (!match?.[1]) continue;
+    const parsed = parseInt(match[1].replace(/,/g, ""), 10);
+    if (Number.isFinite(parsed)) return Math.max(0, parsed);
+  }
+  return null;
+}
+
 async function fetchCodechefSolvedCountFromProfile(handle: string): Promise<number | null> {
   try {
     const res = await fetch(`https://www.codechef.com/users/${encodeURIComponent(handle)}`, {
       cache: "no-store",
       redirect: "follow",
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        Accept: "text/html,application/xhtml+xml",
+      },
     });
     if (!res.ok) return null;
     const html = await res.text();
-    const match = html.match(/Total Problems Solved:\s*([0-9,]+)/i);
-    if (!match?.[1]) return null;
-    const parsed = parseInt(match[1].replace(/,/g, ""), 10);
-    return Number.isFinite(parsed) ? Math.max(0, parsed) : null;
+    return parseSolvedFromProfileHtml(html);
   } catch {
     return null;
   }
@@ -43,7 +60,11 @@ async function fetchCodechefSolvedCountFromProfile(handle: string): Promise<numb
 
 export async function fetchCodechefData(handle: string): Promise<PlatformData> {
   const res = await fetch(`${API_BASE}/codechef/${encodeURIComponent(handle)}`, {
-    next: { revalidate: 3600 },
+    cache: "no-store",
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Accept: "application/json, text/plain, */*",
+    },
   });
 
   if (!res.ok) throw new Error(`CodeChef API failed: ${res.status}`);
@@ -56,9 +77,16 @@ export async function fetchCodechefData(handle: string): Promise<PlatformData> {
 
   const rating = parseInt(data.rating || "0", 10) || 0;
   const stars = data.stars ? `${data.stars}★` : null;
-  const apiSolved = parseCount(data.problemsSolved);
-  const profileSolved = apiSolved == null ? await fetchCodechefSolvedCountFromProfile(handle) : null;
-  const problemsSolved = apiSolved ?? profileSolved ?? 0;
+  const rawData = data as unknown as Record<string, unknown>;
+  const apiSolved = Math.max(
+    parseCount(rawData.problemsSolved) ?? 0,
+    parseCount(rawData.problems_solved) ?? 0,
+    parseCount(rawData.fullySolved) ?? 0,
+    parseCount(rawData.fully_solved) ?? 0
+  );
+  const profileSolved =
+    apiSolved <= 0 ? await fetchCodechefSolvedCountFromProfile(handle) : null;
+  const problemsSolved = Math.max(apiSolved, profileSolved ?? 0);
 
   return {
     handle,

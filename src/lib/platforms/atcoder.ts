@@ -2,6 +2,7 @@ import type { PlatformData } from "@/types";
 import { format } from "date-fns";
 
 const KENKOOOO_API = "https://kenkoooo.com/atcoder/atcoder-api";
+const ATCODER_BASE = "https://atcoder.jp";
 
 type AtCoderSubmission = {
   id: number;
@@ -13,19 +14,124 @@ type AtCoderSubmission = {
   point: number;
 };
 
+type AtCoderHistoryEntry = {
+  IsRated?: boolean;
+  NewRating?: number;
+};
+
+type AtCoderProfileStats = {
+  rating: number;
+  maxRating: number;
+  ratedMatches: number;
+  rank: string | null;
+};
+
+function parseIntSafe(value: string | null | undefined): number {
+  if (!value) return 0;
+  const n = parseInt(value.replace(/,/g, "").trim(), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function matchNumber(html: string, pattern: RegExp): number {
+  return parseIntSafe(html.match(pattern)?.[1]);
+}
+
+function matchText(html: string, pattern: RegExp): string | null {
+  const m = html.match(pattern)?.[1];
+  return m ? m.replace(/\s+/g, " ").trim() : null;
+}
+
+async function fetchAtCoderProfilePage(handle: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${ATCODER_BASE}/users/${encodeURIComponent(handle)}?lang=en`, {
+      cache: "no-store",
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        Accept: "text/html,application/xhtml+xml",
+      },
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+function parseAtCoderProfileStats(html: string): AtCoderProfileStats {
+  const rating = matchNumber(
+    html,
+    /<th[^>]*>\s*Rating\s*<\/th>\s*<td[^>]*>[\s\S]*?<span[^>]*>([0-9,]+)<\/span>/i
+  );
+  const maxRating = matchNumber(
+    html,
+    /<th[^>]*>\s*Highest Rating\s*<\/th>\s*<td[^>]*>[\s\S]*?<span[^>]*>([0-9,]+)<\/span>/i
+  );
+  const ratedMatches = matchNumber(
+    html,
+    /<th[^>]*>\s*Rated Matches[\s\S]*?<\/th>\s*<td[^>]*>([0-9,]+)<\/td>/i
+  );
+  const rank = matchText(
+    html,
+    /<th[^>]*>\s*Rank\s*<\/th>\s*<td[^>]*>([^<]+)<\/td>/i
+  );
+
+  return {
+    rating,
+    maxRating: Math.max(maxRating, rating),
+    ratedMatches,
+    rank,
+  };
+}
+
+async function fetchAtCoderHistory(handle: string): Promise<AtCoderHistoryEntry[]> {
+  try {
+    const res = await fetch(`${ATCODER_BASE}/users/${encodeURIComponent(handle)}/history/json`, {
+      cache: "no-store",
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        Accept: "application/json, text/plain, */*",
+      },
+    });
+    if (!res.ok) return [];
+    const payload = await res.json();
+    return Array.isArray(payload) ? (payload as AtCoderHistoryEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 async function fetchAllSubmissions(handle: string): Promise<AtCoderSubmission[]> {
   const all: AtCoderSubmission[] = [];
   let fromSecond = 0;
 
-  for (let i = 0; i < 50; i++) {
-    const res = await fetch(
-      `${KENKOOOO_API}/v3/user/submissions?user=${encodeURIComponent(handle)}&from_second=${fromSecond}`,
-      { next: { revalidate: 3600 } }
-    );
+  for (let i = 0; i < 30; i++) {
+    let res: Response;
+    try {
+      res = await fetch(
+        `${KENKOOOO_API}/v3/user/submissions?user=${encodeURIComponent(handle)}&from_second=${fromSecond}`,
+        {
+          cache: "no-store",
+          headers: {
+            "User-Agent": "Mozilla/5.0",
+            Accept: "application/json, text/plain, */*",
+          },
+        }
+      );
+    } catch {
+      break;
+    }
 
     if (!res.ok) break;
 
-    const batch: AtCoderSubmission[] = await res.json();
+    let batch: AtCoderSubmission[];
+    try {
+      const parsed = await res.json();
+      if (!Array.isArray(parsed)) break;
+      batch = parsed as AtCoderSubmission[];
+    } catch {
+      break;
+    }
+
     if (batch.length === 0) break;
 
     all.push(...batch);
@@ -33,18 +139,32 @@ async function fetchAllSubmissions(handle: string): Promise<AtCoderSubmission[]>
     if (batch.length < 500) break;
     fromSecond = batch[batch.length - 1].epoch_second + 1;
 
-    await new Promise((r) => setTimeout(r, 1100));
+    await new Promise((r) => setTimeout(r, 350));
   }
 
   return all;
 }
 
 export async function fetchAtcoderData(handle: string): Promise<PlatformData> {
-  const submissions = await fetchAllSubmissions(handle);
+  const [profileHtml, history, submissions] = await Promise.all([
+    fetchAtCoderProfilePage(handle),
+    fetchAtCoderHistory(handle),
+    fetchAllSubmissions(handle),
+  ]);
 
-  if (submissions.length === 0) {
-    throw new Error("AtCoder user not found or no submissions");
+  if (!profileHtml) {
+    throw new Error("AtCoder user not found");
   }
+  const profileStats = parseAtCoderProfileStats(profileHtml);
+
+  const ratedRatings = history
+    .filter((h) => h?.IsRated && typeof h.NewRating === "number")
+    .map((h) => Number(h.NewRating) || 0)
+    .filter((r) => r >= 0);
+  const ratingFromHistory =
+    ratedRatings.length > 0 ? ratedRatings[ratedRatings.length - 1] : 0;
+  const maxRatingFromHistory =
+    ratedRatings.length > 0 ? Math.max(...ratedRatings) : 0;
 
   const solvedSet = new Set<string>();
   const dailyActivity: Record<string, number> = {};
@@ -60,30 +180,18 @@ export async function fetchAtcoderData(handle: string): Promise<PlatformData> {
     }
   }
 
-  let rating = 0;
-  try {
-    const historyRes = await fetch(
-      `${KENKOOOO_API}/v2/user_info?user=${encodeURIComponent(handle)}`,
-      { next: { revalidate: 3600 } }
-    );
-    if (historyRes.ok) {
-      const info = await historyRes.json();
-      if (typeof info === "object" && info !== null) {
-        // AtCoder problems API might not have direct rating — try scraping or use 0
-        rating = 0;
-      }
-    }
-  } catch {
-    // rating fetch failed
-  }
+  const rating = ratingFromHistory || profileStats.rating || 0;
+  const maxRating = Math.max(maxRatingFromHistory, profileStats.maxRating, rating);
+  const contestsCount =
+    contestSet.size > 0 ? contestSet.size : Math.max(history.length, profileStats.ratedMatches);
 
   return {
     handle,
     rating,
-    maxRating: rating,
+    maxRating,
     problemsSolved: solvedSet.size,
-    rank: null,
-    contestsCount: contestSet.size,
+    rank: profileStats.rank,
+    contestsCount,
     dailyActivity,
   };
 }

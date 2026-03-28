@@ -12,6 +12,7 @@ import {
   Tooltip,
 } from "chart.js";
 import type { TopicRadarPoint } from "@/lib/topic-radar";
+import { Badge } from "@/components/ui/badge";
 
 Chart.register(RadarController, RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 const SCALE_MARKERS = [5, 10, 20, 30, 100, 200, 300];
@@ -130,7 +131,12 @@ export function TopicRadarChart({
   return (
     <div className="rounded-lg border border-border/80 bg-card/60 p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-foreground">Topic Radar (Codeforces + LeetCode)</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-foreground">Topic Radar (Codeforces + LeetCode)</p>
+          <Badge variant="outline" className="h-5 px-2 text-[10px] font-medium">
+            Approximate
+          </Badge>
+        </div>
         <p className="text-[11px] text-muted-foreground">Scale markers: 5, 10, 20, 30, 100, 200, 300</p>
       </div>
 
@@ -140,6 +146,9 @@ export function TopicRadarChart({
           {leetcodeHandle ? `LC: ${leetcodeHandle}` : "LC: not linked"}
         </p>
       )}
+      <p className="mb-3 text-[11px] text-muted-foreground">
+        CF and LC topic tags do not map one-to-one. Treat this radar as a rough combined topic signal and total trend, not an exact tag-by-tag metric.
+      </p>
 
       {data.length === 0 ? (
         <div className="rounded-md border border-border/40 bg-muted/20 p-4 text-xs text-muted-foreground">
