@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncUserPlatform } from "@/lib/platforms";
@@ -13,6 +14,10 @@ export async function POST() {
     where: { email: session.user.email },
     select: {
       id: true,
+      username: true,
+      university: {
+        select: { shortName: true },
+      },
       platformProfiles: {
         where: { verified: true },
         orderBy: { platform: "asc" },
@@ -46,6 +51,17 @@ export async function POST() {
 
   const successful = results.filter((r) => r.success).length;
   const failed = results.length - successful;
+  const codeforcesSynced = results.some((r) => r.success && r.platform === "CODEFORCES");
+
+  if (successful > 0) {
+    revalidatePath("/dashboard");
+    revalidatePath("/leaderboard");
+    revalidatePath(`/leaderboard/${user.university.shortName}`);
+    revalidatePath(`/u/${user.username}`);
+    if (codeforcesSynced) {
+      revalidatePath("/cp-rankings");
+    }
+  }
 
   return NextResponse.json({
     success: failed === 0,

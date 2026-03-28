@@ -51,7 +51,12 @@ export default async function UniversityLeaderboardPage({
       })),
       rank: 0,
     }))
-    .sort((a, b) => b.totalSolved - a.totalSolved)
+    .sort(
+      (a, b) =>
+        b.totalSolved - a.totalSolved ||
+        b.bestRating - a.bestRating ||
+        a.username.localeCompare(b.username)
+    )
     .map((e, i) => ({ ...e, rank: i + 1 }));
 
   return (

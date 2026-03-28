@@ -24,8 +24,36 @@ type LeetTagCount = {
   problemsSolved: number;
 };
 
+type LeetCodeTopicGroups = {
+  advanced?: LeetTagCount[];
+  intermediate?: LeetTagCount[];
+  fundamental?: LeetTagCount[];
+};
+
+type CpRatingLeetCodeResponse = {
+  topics?: LeetCodeTopicGroups;
+};
+
+const TOPIC_ALIASES: Record<string, string> = {
+  strings: "string",
+  sortings: "sorting",
+  hashing: "hash table",
+  "hash map": "hash table",
+  "hash set": "hash table",
+  hashset: "hash table",
+  trees: "tree",
+  graphs: "graph",
+  "depth-first search": "depth first search",
+  "breadth-first search": "breadth first search",
+  "union find": "dsu",
+  "union-find": "dsu",
+  "disjoint set union": "dsu",
+  "binary indexed tree": "bit",
+};
+
 function normalizeTag(tag: string): string {
-  return tag.trim().toLowerCase().replace(/\s+/g, " ");
+  const normalized = tag.trim().toLowerCase().replace(/\s+/g, " ");
+  return TOPIC_ALIASES[normalized] || normalized;
 }
 
 function addCount(map: TopicMap, key: string, count = 1) {
@@ -94,7 +122,6 @@ export async function fetchCodeforcesTopicCounts(handle: string): Promise<TopicM
 }
 
 export async function fetchLeetCodeTopicCounts(username: string): Promise<TopicMap> {
-  const counts: TopicMap = {};
   const query = `
     query topicCounts($username: String!) {
       matchedUser(username: $username) {
@@ -110,15 +137,37 @@ export async function fetchLeetCodeTopicCounts(username: string): Promise<TopicM
   const res = await fetch("https://leetcode.com/graphql", {
     method: "POST",
     cache: "no-store",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "https://leetcode.com",
+      Referer: "https://leetcode.com/",
+    },
     body: JSON.stringify({ query, variables: { username } }),
   });
 
-  if (!res.ok) throw new Error(`LeetCode GraphQL failed (${res.status})`);
-  const payload = await res.json();
-  if (payload.errors?.length) throw new Error(payload.errors[0].message || "LeetCode GraphQL error");
+  if (!res.ok) {
+    const fallback = await fetchLeetCodeTopicCountsFromCpRating(username);
+    if (fallback) return fallback;
+    throw new Error(`LeetCode GraphQL failed (${res.status})`);
+  }
 
+  const payload = await res.json();
   const tagGroups = payload.data?.matchedUser?.tagProblemCounts;
+  const fromGraphQL = toTopicMap(tagGroups);
+  if (Object.keys(fromGraphQL).length > 0) return fromGraphQL;
+
+  if (payload.errors?.length) {
+    const fallback = await fetchLeetCodeTopicCountsFromCpRating(username);
+    if (fallback) return fallback;
+    throw new Error(payload.errors[0].message || "LeetCode GraphQL error");
+  }
+
+  const fallback = await fetchLeetCodeTopicCountsFromCpRating(username);
+  return fallback || fromGraphQL;
+}
+
+function toTopicMap(tagGroups: LeetCodeTopicGroups | null | undefined): TopicMap {
+  const counts: TopicMap = {};
   if (!tagGroups) return counts;
 
   const allTags: LeetTagCount[] = [
@@ -126,13 +175,28 @@ export async function fetchLeetCodeTopicCounts(username: string): Promise<TopicM
     ...(tagGroups.intermediate || []),
     ...(tagGroups.fundamental || []),
   ];
-
   for (const entry of allTags) {
     if (!entry?.tagName || !entry?.problemsSolved) continue;
     addCount(counts, normalizeTag(entry.tagName), Number(entry.problemsSolved) || 0);
   }
-
   return counts;
+}
+
+async function fetchLeetCodeTopicCountsFromCpRating(
+  username: string
+): Promise<TopicMap | null> {
+  try {
+    const res = await fetch(
+      `https://cp-rating-api.vercel.app/leetcode/${encodeURIComponent(username)}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const payload: CpRatingLeetCodeResponse = await res.json();
+    const counts = toTopicMap(payload.topics);
+    return Object.keys(counts).length > 0 ? counts : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchCombinedTopicRadar(opts: {

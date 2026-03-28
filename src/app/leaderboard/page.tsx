@@ -37,7 +37,12 @@ async function getLeaderboard(): Promise<LeaderboardEntry[]> {
       rank: 0,
     }));
 
-    entries.sort((a, b) => b.totalSolved - a.totalSolved);
+    entries.sort(
+      (a, b) =>
+        b.totalSolved - a.totalSolved ||
+        b.bestRating - a.bestRating ||
+        a.username.localeCompare(b.username)
+    );
     entries.forEach((e, i) => (e.rank = i + 1));
 
     return entries;

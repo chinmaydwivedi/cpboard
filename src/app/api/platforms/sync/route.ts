@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncUserPlatform } from "@/lib/platforms";
@@ -28,6 +29,13 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email! },
+    select: {
+      id: true,
+      username: true,
+      university: {
+        select: { shortName: true },
+      },
+    },
   });
 
   if (!user) {
@@ -58,13 +66,23 @@ export async function POST(req: NextRequest) {
 
   try {
     const data = await syncUserPlatform(user.id, platform, handle.trim());
+    revalidatePath("/dashboard");
+    revalidatePath("/leaderboard");
+    revalidatePath(`/leaderboard/${user.university.shortName}`);
+    revalidatePath(`/u/${user.username}`);
+    if (platform === "CODEFORCES") {
+      revalidatePath("/cp-rankings");
+    }
+
     return NextResponse.json({
       success: true,
       data: {
+        handle: data.handle,
         rating: data.rating,
         maxRating: data.maxRating,
         problemsSolved: data.problemsSolved,
         rank: data.rank,
+        contestsCount: data.contestsCount,
       },
     });
   } catch (error) {
@@ -99,7 +117,13 @@ export async function DELETE(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email! },
-    select: { id: true },
+    select: {
+      id: true,
+      username: true,
+      university: {
+        select: { shortName: true },
+      },
+    },
   });
 
   if (!user) {
@@ -120,6 +144,14 @@ export async function DELETE(req: NextRequest) {
 
   if (profileDelete.count === 0) {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/leaderboard");
+  revalidatePath(`/leaderboard/${user.university.shortName}`);
+  revalidatePath(`/u/${user.username}`);
+  if (platform === "CODEFORCES") {
+    revalidatePath("/cp-rankings");
   }
 
   return NextResponse.json({ success: true });

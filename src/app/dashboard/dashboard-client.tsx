@@ -193,14 +193,22 @@ export function DashboardClient({
       toast.success(`${PLATFORM_LABELS[platform]} synced`);
       setCurrentProfiles((prev) => {
         const idx = prev.findIndex((p) => p.platform === platform);
+        const syncedHandle = data?.data?.handle || handle;
         const updated: ProfileData = {
-          platform, handle, rating: data.data.rating, maxRating: data.data.maxRating,
+          platform,
+          handle: syncedHandle,
+          rating: data.data.rating,
+          maxRating: data.data.maxRating,
           problemsSolved: data.data.problemsSolved, rank: data.data.rank,
-          contestsCount: 0, lastSynced: new Date().toISOString(), verified: true,
+          contestsCount: data.data.contestsCount || 0,
+          lastSynced: new Date().toISOString(),
+          verified: true,
         };
         if (idx >= 0) { const c = [...prev]; c[idx] = updated; return c; }
         return [...prev, updated];
       });
+      setHandles((prev) => ({ ...prev, [platform]: data?.data?.handle || handle }));
+      router.refresh();
     } catch { toast.error("Network error"); }
     finally { setSyncing((prev) => ({ ...prev, [platform]: false })); }
   };
