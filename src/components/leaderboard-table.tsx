@@ -10,6 +10,12 @@ import type { Platform } from "@prisma/client";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const PAGE_SIZE = 10;
+const PLATFORM_SHORT_LABELS: Record<Platform, string> = {
+  CODEFORCES: "CF",
+  LEETCODE: "LC",
+  ATCODER: "AC",
+  CODECHEF: "CC",
+};
 
 type SortKey = "rank" | "totalSolved" | "bestRating" | "CODEFORCES" | "LEETCODE" | "ATCODER" | "CODECHEF";
 
@@ -92,7 +98,7 @@ export function LeaderboardTable({
               </th>
               {(["CODEFORCES", "LEETCODE", "ATCODER", "CODECHEF"] as Platform[]).map((p) => (
                 <th key={p} className="px-3 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer hidden lg:table-cell" onClick={() => handleSort(p as SortKey)}>
-                  {PLATFORM_LABELS[p].slice(0, 2)}
+                  {PLATFORM_SHORT_LABELS[p]}
                 </th>
               ))}
               <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer" onClick={() => handleSort("bestRating")}>
