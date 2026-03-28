@@ -66,7 +66,8 @@ export function ProfileClient({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [removingPlatform, setRemovingPlatform] = useState<Platform | null>(null);
-  const bestRating = profiles.length > 0 ? Math.max(...profiles.map((p) => p.maxRating)) : 0;
+  const leetcodeProfile = profiles.find((p) => p.platform === "LEETCODE");
+  const leetcodeRating = leetcodeProfile?.rating || leetcodeProfile?.maxRating || 0;
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
@@ -143,9 +144,9 @@ export function ProfileClient({
           <p className="text-2xl font-bold font-mono text-primary mt-1">{totalSolved}</p>
         </div>
         <div className="rounded-lg border border-border/60 p-4">
-          <p className="text-[11px] text-muted-foreground font-medium">Best Rating</p>
+          <p className="text-[11px] text-muted-foreground font-medium">LC Rating</p>
           <p className="text-2xl font-bold font-mono mt-1">
-            {bestRating > 0 ? <span style={{ color: getCodeforcesRankColor(bestRating) }}>{bestRating}</span> : "—"}
+            {leetcodeRating > 0 ? <span style={{ color: getCodeforcesRankColor(leetcodeRating) }}>{leetcodeRating}</span> : "—"}
           </p>
         </div>
         <div className="rounded-lg border border-border/60 p-4">

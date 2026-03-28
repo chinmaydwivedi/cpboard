@@ -124,7 +124,8 @@ export function DashboardClient({
 
   const totalSolved = currentProfiles.reduce((s, p) => s + p.problemsSolved, 0);
 
-  const bestRating = currentProfiles.length ? Math.max(...currentProfiles.map((p) => p.maxRating)) : 0;
+  const leetcodeProfile = currentProfiles.find((p) => p.platform === "LEETCODE");
+  const leetcodeRating = leetcodeProfile?.rating || leetcodeProfile?.maxRating || 0;
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -302,7 +303,7 @@ export function DashboardClient({
       <div className="grid gap-3 sm:grid-cols-3 mb-6" data-tour="dash-stats">
         {[
           { label: "Problems Solved", value: totalSolved.toString() },
-          { label: "Best Rating", value: bestRating > 0 ? bestRating.toString() : "—" },
+          { label: "LC Rating", value: leetcodeRating > 0 ? leetcodeRating.toString() : "—" },
           { label: "Platforms", value: `${currentProfiles.length}/4` },
         ].map((stat) => (
           <div key={stat.label} className="rounded-lg border border-border/40 p-4">

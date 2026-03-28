@@ -5,8 +5,9 @@ export function computeTotalSolved(profiles: PlatformProfile[]): number {
 }
 
 export function computeBestRating(profiles: PlatformProfile[]): number {
-  if (profiles.length === 0) return 0;
-  return Math.max(...profiles.map((p) => p.maxRating));
+  const leetcode = profiles.find((p) => p.platform === "LEETCODE");
+  if (!leetcode) return 0;
+  return leetcode.rating || leetcode.maxRating || 0;
 }
 
 export function computeCompositeScore(profiles: PlatformProfile[]): number {
