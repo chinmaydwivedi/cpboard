@@ -15,6 +15,7 @@ query recentAcSubmissions($username: String!) {
 }`;
 
 type CodeforcesSubmission = {
+  creationTimeSeconds?: number;
   verdict?: string;
   problem?: {
     contestId?: number;
@@ -22,14 +23,19 @@ type CodeforcesSubmission = {
   };
 };
 
-type AutoSolveDetection =
-  | { matched: true; source: "LEETCODE" | "CODEFORCES" }
-  | { matched: false };
+type LeetcodeAcceptedSubmission = {
+  titleSlug?: string;
+  timestamp?: string | number;
+};
 
 type CodeforcesProblemRef = {
   contestId: number;
   index: string;
 };
+
+const IST_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Kolkata",
+});
 
 function extractLeetcodeSlugFromUrl(problemUrl: string): string | null {
   try {
@@ -74,7 +80,8 @@ function extractCodeforcesProblemRef(problemUrl: string): CodeforcesProblemRef |
 
 async function hasAcceptedLeetcodeSubmission(
   handle: string,
-  titleSlug: string
+  titleSlug: string,
+  verifyDateKey: string
 ): Promise<boolean> {
   const response = await fetch(LEETCODE_GRAPHQL, {
     method: "POST",
@@ -95,15 +102,21 @@ async function hasAcceptedLeetcodeSubmission(
   const list = payload?.data?.recentAcSubmissionList;
   if (!Array.isArray(list)) return false;
 
-  return list.some((item: { titleSlug?: string }) => {
+  return (list as LeetcodeAcceptedSubmission[]).some((item) => {
     const slug = item?.titleSlug?.toLowerCase?.();
-    return slug === titleSlug;
+    const timestampValue = Number(item?.timestamp ?? NaN);
+    if (!Number.isFinite(timestampValue) || timestampValue <= 0) return false;
+    const submittedDateKey = IST_DATE_FORMATTER.format(
+      new Date(timestampValue * 1000)
+    );
+    return slug === titleSlug && submittedDateKey === verifyDateKey;
   });
 }
 
 async function hasAcceptedCodeforcesSubmission(
   handle: string,
-  target: CodeforcesProblemRef
+  target: CodeforcesProblemRef,
+  verifyDateKey: string
 ): Promise<boolean> {
   const response = await fetch(
     `${CODEFORCES_API}/user.status?handle=${encodeURIComponent(
@@ -126,42 +139,108 @@ async function hasAcceptedCodeforcesSubmission(
     if (submission.verdict !== "OK") return false;
     const contestId = submission.problem?.contestId;
     const index = submission.problem?.index?.toUpperCase();
-    return contestId === target.contestId && index === target.index;
+    const submittedAt = submission.creationTimeSeconds;
+    if (!submittedAt || !Number.isFinite(submittedAt)) return false;
+    const submittedDateKey = IST_DATE_FORMATTER.format(
+      new Date(submittedAt * 1000)
+    );
+    return (
+      contestId === target.contestId &&
+      index === target.index &&
+      submittedDateKey === verifyDateKey
+    );
   });
 }
 
-export async function detectAutoSolvedPotd(args: {
+export async function verifyPotdSolvedFromExternal(args: {
   platform: ProblemPlatform;
   problemUrl: string;
   leetcodeHandle: string | null;
   codeforcesHandle: string | null;
-}): Promise<AutoSolveDetection> {
+  verifyDateKey?: string;
+}): Promise<
+  | { verified: true; source: "LEETCODE" | "CODEFORCES" }
+  | { verified: false; reason: string }
+> {
+  const verifyDateKey = args.verifyDateKey ?? getIstDateKey();
+
   if (args.platform === "LEETCODE" && args.leetcodeHandle) {
     const slug = extractLeetcodeSlugFromUrl(args.problemUrl);
-    if (!slug) return { matched: false };
+    if (!slug) {
+      return {
+        verified: false,
+        reason: "POTD URL does not look like a valid LeetCode problem link.",
+      };
+    }
     try {
-      const matched = await hasAcceptedLeetcodeSubmission(args.leetcodeHandle, slug);
-      return matched ? { matched: true, source: "LEETCODE" } : { matched: false };
+      const matched = await hasAcceptedLeetcodeSubmission(
+        args.leetcodeHandle,
+        slug,
+        verifyDateKey
+      );
+      return matched
+        ? { verified: true, source: "LEETCODE" }
+        : {
+            verified: false,
+            reason:
+              "No accepted LeetCode submission found for this POTD today (IST).",
+          };
     } catch {
-      return { matched: false };
+      return {
+        verified: false,
+        reason: "Could not verify LeetCode submissions right now. Try again.",
+      };
     }
   }
 
   if (args.platform === "CODEFORCES" && args.codeforcesHandle) {
     const problemRef = extractCodeforcesProblemRef(args.problemUrl);
-    if (!problemRef) return { matched: false };
+    if (!problemRef) {
+      return {
+        verified: false,
+        reason: "POTD URL does not look like a valid Codeforces problem link.",
+      };
+    }
     try {
       const matched = await hasAcceptedCodeforcesSubmission(
         args.codeforcesHandle,
-        problemRef
+        problemRef,
+        verifyDateKey
       );
-      return matched ? { matched: true, source: "CODEFORCES" } : { matched: false };
+      return matched
+        ? { verified: true, source: "CODEFORCES" }
+        : {
+            verified: false,
+            reason:
+              "No accepted Codeforces submission found for this POTD today (IST).",
+          };
     } catch {
-      return { matched: false };
+      return {
+        verified: false,
+        reason: "Could not verify Codeforces submissions right now. Try again.",
+      };
     }
   }
 
-  return { matched: false };
+  if (args.platform === "LEETCODE") {
+    return {
+      verified: false,
+      reason: "Link your LeetCode handle in Dashboard first.",
+    };
+  }
+
+  if (args.platform === "CODEFORCES") {
+    return {
+      verified: false,
+      reason: "Link your Codeforces handle in Dashboard first.",
+    };
+  }
+
+  return {
+    verified: false,
+    reason:
+      "External verification is currently available only for LeetCode and Codeforces POTD.",
+  };
 }
 
 export async function upsertPotdSolveAndGetStreak(args: {

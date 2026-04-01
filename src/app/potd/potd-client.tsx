@@ -345,8 +345,6 @@ export function PotdClient({
   const [postingComment, setPostingComment] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [refreshingComments, setRefreshingComments] = useState(false);
-  const [autoChecking, setAutoChecking] = useState(false);
-  const [autoCheckedProblemId, setAutoCheckedProblemId] = useState<string | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const seed = selectedDateKey ?? problem?.dateKey ?? todayKey;
     const parsed = parseDateKey(seed);
@@ -362,7 +360,6 @@ export function PotdClient({
     const seed = selectedDateKey ?? problem?.dateKey ?? todayKey;
     const parsed = parseDateKey(seed);
     setCalendarMonth({ year: parsed.year, month: parsed.month });
-    setAutoCheckedProblemId(null);
   }, [
     problem,
     hasSolvedCurrent,
@@ -372,45 +369,6 @@ export function PotdClient({
     selectedDateKey,
     todayKey,
   ]);
-
-  useEffect(() => {
-    if (!viewer || !problem || solvedCurrent) return;
-    if (autoCheckedProblemId === problem.id) return;
-    if (problem.platform !== "LEETCODE" && problem.platform !== "CODEFORCES") return;
-
-    setAutoCheckedProblemId(problem.id);
-    setAutoChecking(true);
-
-    void (async () => {
-      try {
-        const res = await fetch("/api/potd/auto-solve", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ problemId: problem.id }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) return;
-        if (!data?.solved) return;
-
-        setSolvedCurrent(true);
-        setLocalSolvedDates((prev) =>
-          prev.includes(problem.dateKey) ? prev : [...prev, problem.dateKey]
-        );
-        if (data?.streak) {
-          setStreak(data.streak);
-        }
-        if (data?.auto && data?.source) {
-          const sourceLabel = data.source === "LEETCODE" ? "LeetCode" : "Codeforces";
-          toast.success(`Auto-marked solved from ${sourceLabel} accepted submission`);
-        }
-      } catch {
-        // auto-check is best-effort; ignore transient errors
-      } finally {
-        setAutoChecking(false);
-      }
-    })();
-  }, [viewer, problem, solvedCurrent, autoCheckedProblemId]);
 
   const refreshComments = useCallback(async (silent = false) => {
     if (!problem) return;
@@ -461,7 +419,12 @@ export function PotdClient({
       setLocalSolvedDates((prev) =>
         prev.includes(problem.dateKey) ? prev : [...prev, problem.dateKey]
       );
-      toast.success("Marked as solved. Nice consistency.");
+      if (data.source) {
+        const sourceLabel = data.source === "LEETCODE" ? "LeetCode" : "Codeforces";
+        toast.success(`Verified from ${sourceLabel} and marked solved.`);
+      } else {
+        toast.success("Verified and marked as solved.");
+      }
     } catch {
       toast.error("Failed to mark problem as solved");
     } finally {
@@ -736,17 +699,9 @@ export function PotdClient({
                     {solvedCurrent
                       ? "Solved"
                       : markingSolved
-                        ? "Marking..."
+                        ? "Verifying..."
                         : "Mark as solved"}
                   </Button>
-                  {!solvedCurrent &&
-                    autoChecking &&
-                    (problem.platform === "LEETCODE" ||
-                      problem.platform === "CODEFORCES") && (
-                      <p className="text-[11px] text-muted-foreground">
-                        Checking accepted submissions...
-                      </p>
-                    )}
                 </>
               ) : (
                 <Link
