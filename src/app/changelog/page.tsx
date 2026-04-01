@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { CHANGELOG_RELEASES } from "@/lib/changelog";
 import { Badge } from "@/components/ui/badge";
 
@@ -51,10 +52,23 @@ export default function ChangelogPage() {
             </div>
             <ul className="space-y-2">
               {release.highlights.map((item) => (
-                <li key={item.id} className="text-sm">
-                  <span className="mr-2">{item.emoji}</span>
-                  <span className="font-medium">{item.title}:</span>{" "}
-                  <span className="text-muted-foreground">{item.description}</span>
+                <li key={item.id} className="flex items-start gap-2.5 text-sm">
+                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background/70">
+                    <Image
+                      src={item.iconSrc || "/favicon.ico"}
+                      alt=""
+                      width={12}
+                      height={12}
+                      className="rounded-[3px]"
+                    />
+                  </div>
+                  <div>
+                    <span className="font-medium">{item.title}:</span>{" "}
+                    <span className="text-muted-foreground">{item.description}</span>{" "}
+                    <span className="text-[11px] text-muted-foreground/85 font-mono">
+                      ({item.pageLabel})
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>

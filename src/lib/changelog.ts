@@ -1,7 +1,9 @@
 export type ChangelogHighlight = {
   id: string;
   label: "NEW" | "IMPROVED" | "FIXED";
-  emoji: string;
+  pageHref: string;
+  pageLabel: string;
+  iconSrc?: string;
   title: string;
   description: string;
 };
@@ -25,7 +27,9 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
       {
         id: "profile-privacy",
         label: "NEW",
-        emoji: "🔐",
+        pageHref: "/profile",
+        pageLabel: "Profile",
+        iconSrc: "/favicon.ico",
         title: "Private Profile Details",
         description:
           "Users must be signed in to open full profile details for other members.",
@@ -33,7 +37,9 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
       {
         id: "profile-visit-counter",
         label: "IMPROVED",
-        emoji: "👀",
+        pageHref: "/profile",
+        pageLabel: "Profile",
+        iconSrc: "/favicon.ico",
         title: "Profile Visit Counter",
         description:
           "Each profile now shows total visits so users can track profile reach.",

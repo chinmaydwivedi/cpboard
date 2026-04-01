@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Sparkles, BookText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -124,7 +125,15 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
                 className="rounded-lg border border-border/50 bg-background/65 p-3.5"
               >
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 text-lg leading-none">{item.emoji}</div>
+                  <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-card/70">
+                    <Image
+                      src={item.iconSrc || "/favicon.ico"}
+                      alt=""
+                      width={18}
+                      height={18}
+                      className="rounded-[4px]"
+                    />
+                  </div>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
@@ -140,6 +149,12 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
                         )}
                       >
                         {item.label}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-mono border-border/60 text-muted-foreground"
+                      >
+                        {item.pageLabel}
                       </Badge>
                       <p className="text-sm font-medium">{item.title}</p>
                     </div>
