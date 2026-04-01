@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
-import { dateToDateKey, isPotdStreakExcludedDateKey } from "@/lib/potd";
+import { dateToDateKey, isPotdGraceSolveDateKey } from "@/lib/potd";
 import { prisma } from "@/lib/prisma";
 import {
   upsertPotdSolveAndGetStreak,
@@ -69,10 +69,10 @@ export async function POST(req: NextRequest) {
       ?.handle ?? null;
 
   const problemDateKey = dateToDateKey(problem.date);
-  const streakExcluded = isPotdStreakExcludedDateKey(problemDateKey);
+  const graceSolveDate = isPotdGraceSolveDateKey(problemDateKey);
   let verifiedSource: "LEETCODE" | "CODEFORCES" | null = null;
 
-  if (!streakExcluded) {
+  if (!graceSolveDate) {
     const verification = await verifyPotdSolvedFromExternal({
       platform: problem.platform,
       problemUrl: problem.problemUrl,
@@ -101,7 +101,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    streakExcluded,
     ...(verifiedSource ? { source: verifiedSource } : {}),
     streak,
   });

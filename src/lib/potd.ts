@@ -10,7 +10,6 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const IST_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   timeZone: IST_TIME_ZONE,
 });
-const POTD_STREAK_EXCLUDED_DATE_KEYS = new Set([POTD_GRACE_SOLVE_DATE_KEY]);
 
 export const POTD_LANGUAGES: readonly SolutionLanguage[] = [
   "JAVA",
@@ -47,8 +46,8 @@ export function isDateKey(value: string): boolean {
   return DATE_KEY_RE.test(value);
 }
 
-export function isPotdStreakExcludedDateKey(dateKey: string): boolean {
-  return POTD_STREAK_EXCLUDED_DATE_KEYS.has(dateKey);
+export function isPotdGraceSolveDateKey(dateKey: string): boolean {
+  return dateKey === POTD_GRACE_SOLVE_DATE_KEY;
 }
 
 export function getIstDateKey(date = new Date()): string {
@@ -88,11 +87,7 @@ export function computePotdStreak(
   todayKey = getIstDateKey()
 ): PotdStreakSummary {
   const unique = [
-    ...new Set(
-      solvedDateKeys.filter(
-        (dateKey) => isDateKey(dateKey) && !isPotdStreakExcludedDateKey(dateKey)
-      )
-    ),
+    ...new Set([...solvedDateKeys.filter(isDateKey), POTD_GRACE_SOLVE_DATE_KEY]),
   ].sort();
   if (unique.length === 0) {
     return {

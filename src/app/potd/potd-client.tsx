@@ -475,17 +475,11 @@ export function PotdClient({
       setLocalSolvedDates((prev) =>
         prev.includes(problem.dateKey) ? prev : [...prev, problem.dateKey]
       );
-      if (data.streakExcluded) {
-        toast.success(
-          "Marked solved for the grace day. This POTD does not change streak points."
-        );
-        return;
-      }
       if (data.source) {
         const sourceLabel = data.source === "LEETCODE" ? "LeetCode" : "Codeforces";
         toast.success(`Verified from ${sourceLabel} and marked solved.`);
       } else {
-        toast.success("Verified and marked as solved.");
+        toast.success("Marked as solved.");
       }
     } catch {
       toast.error("Failed to mark problem as solved");
