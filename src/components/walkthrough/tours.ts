@@ -86,7 +86,7 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       popover: {
         title: "Rankings table",
         description:
-          "Sort by rank, totals, per-platform solved counts, or best rating. Click a user to open their public profile.",
+          "Sort by rank, totals, POTD longest streak, per-platform solved counts, or best rating. Click a user to open their public profile.",
         side: "top",
       },
     },
@@ -157,6 +157,15 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       },
     },
     {
+      element: SEL("potd-calendar"),
+      popover: {
+        title: "Completion calendar",
+        description:
+          "This monthly calendar adds a tick mark for completed POTDs. Click published past dates (including yesterday) to open and solve them.",
+        side: "bottom",
+      },
+    },
+    {
       element: SEL("potd-streak"),
       popover: {
         title: "Streak tracking",
@@ -188,7 +197,7 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       popover: {
         title: "Discussion",
         description:
-          "Ask questions, compare approaches, and share fenced code blocks in comments.",
+          "Ask questions, compare approaches, share themed fenced code blocks, and delete your own comments when needed.",
         side: "top",
       },
     },

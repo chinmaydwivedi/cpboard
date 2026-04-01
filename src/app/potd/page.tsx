@@ -136,9 +136,12 @@ export default async function PotdPage({
 
   return (
     <PotdClient
+      todayKey={todayKey}
       selectedDateKey={selectedDateKey}
       viewer={viewer}
       streak={streak}
+      solvedDateKeys={solvedDateKeys}
+      publishedDateKeys={archiveRaw.map((entry) => dateToDateKey(entry.date))}
       hasSolvedCurrent={problem ? solvedProblemIds.has(problem.id) : false}
       problem={
         problem

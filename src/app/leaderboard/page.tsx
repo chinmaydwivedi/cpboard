@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { computeTotalSolved, computeBestRating } from "@/lib/scoring";
+import { computePotdStreak, dateToDateKey } from "@/lib/potd";
 import { LeaderboardClient } from "./leaderboard-client";
 import type { LeaderboardEntry } from "@/types";
 
@@ -11,6 +12,10 @@ async function getLeaderboard(): Promise<LeaderboardEntry[]> {
       include: {
         university: true,
         platformProfiles: true,
+        potdSolves: {
+          select: { solvedDate: true },
+          orderBy: { solvedDate: "asc" },
+        },
       },
       where: {
         platformProfiles: { some: {} },
@@ -26,6 +31,9 @@ async function getLeaderboard(): Promise<LeaderboardEntry[]> {
       universityName: user.university.name,
       totalSolved: computeTotalSolved(user.platformProfiles),
       bestRating: computeBestRating(user.platformProfiles),
+      longestPotdStreak: computePotdStreak(
+        user.potdSolves.map((solve) => dateToDateKey(solve.solvedDate))
+      ).longest,
       platforms: user.platformProfiles.map((p) => ({
         platform: p.platform,
         handle: p.handle,

@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PLATFORM_LABELS } from "@/types";
 import type { LeaderboardEntry } from "@/types";
 import type { Platform } from "@prisma/client";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -17,7 +16,15 @@ const PLATFORM_SHORT_LABELS: Record<Platform, string> = {
   CODECHEF: "CC",
 };
 
-type SortKey = "rank" | "totalSolved" | "bestRating" | "CODEFORCES" | "LEETCODE" | "ATCODER" | "CODECHEF";
+type SortKey =
+  | "rank"
+  | "totalSolved"
+  | "bestRating"
+  | "longestPotdStreak"
+  | "CODEFORCES"
+  | "LEETCODE"
+  | "ATCODER"
+  | "CODECHEF";
 
 export function LeaderboardTable({
   entries,
@@ -30,16 +37,12 @@ export function LeaderboardTable({
   const [sortAsc, setSortAsc] = useState(true);
   const [page, setPage] = useState(1);
 
-  const entriesKey = useMemo(() => entries.map((e) => e.userId).join("|"), [entries]);
-  useEffect(() => {
-    setPage(1);
-  }, [entriesKey]);
-
   const sorted = [...entries].sort((a, b) => {
     let av: number, bv: number;
     if (sortKey === "rank") { av = a.rank; bv = b.rank; }
     else if (sortKey === "totalSolved") { av = a.totalSolved; bv = b.totalSolved; }
     else if (sortKey === "bestRating") { av = a.bestRating; bv = b.bestRating; }
+    else if (sortKey === "longestPotdStreak") { av = a.longestPotdStreak; bv = b.longestPotdStreak; }
     else {
       av = a.platforms.find((p) => p.platform === sortKey as Platform)?.problemsSolved || 0;
       bv = b.platforms.find((p) => p.platform === sortKey as Platform)?.problemsSolved || 0;
@@ -51,10 +54,6 @@ export function LeaderboardTable({
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * PAGE_SIZE;
   const pageRows = sorted.slice(start, start + PAGE_SIZE);
-
-  useEffect(() => {
-    setPage((p) => Math.min(p, totalPages));
-  }, [totalPages]);
 
   const pageItems = useMemo(() => {
     const total = totalPages;
@@ -71,6 +70,7 @@ export function LeaderboardTable({
   }, [totalPages, currentPage]);
 
   const handleSort = (key: SortKey) => {
+    setPage(1);
     if (sortKey === key) setSortAsc(!sortAsc);
     else { setSortKey(key); setSortAsc(key === "rank"); }
   };
@@ -95,6 +95,12 @@ export function LeaderboardTable({
               {showUniversity && <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground hidden md:table-cell">University</th>}
               <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer" onClick={() => handleSort("totalSolved")}>
                 Total
+              </th>
+              <th
+                className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer hidden md:table-cell"
+                onClick={() => handleSort("longestPotdStreak")}
+              >
+                POTD 🔥
               </th>
               {(["CODEFORCES", "LEETCODE", "ATCODER", "CODECHEF"] as Platform[]).map((p) => (
                 <th key={p} className="px-3 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer hidden lg:table-cell" onClick={() => handleSort(p as SortKey)}>
@@ -131,6 +137,9 @@ export function LeaderboardTable({
                   </td>
                 )}
                 <td className="px-4 py-3 text-right font-mono font-semibold text-primary">{entry.totalSolved}</td>
+                <td className="px-4 py-3 text-right font-mono hidden md:table-cell">
+                  {entry.longestPotdStreak > 0 ? entry.longestPotdStreak : "—"}
+                </td>
                 {(["CODEFORCES", "LEETCODE", "ATCODER", "CODECHEF"] as Platform[]).map((p) => {
                   const prof = entry.platforms.find((pp) => pp.platform === p);
                   return (
@@ -163,7 +172,7 @@ export function LeaderboardTable({
               size="sm"
               className="h-8 w-8 p-0"
               disabled={currentPage <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              onClick={() => setPage(Math.max(1, currentPage - 1))}
               aria-label="Previous page"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -192,7 +201,7 @@ export function LeaderboardTable({
               size="sm"
               className="h-8 w-8 p-0"
               disabled={currentPage >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
               aria-label="Next page"
             >
               <ChevronRight className="h-4 w-4" />

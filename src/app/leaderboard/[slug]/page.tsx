@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { computeTotalSolved, computeBestRating } from "@/lib/scoring";
+import { computePotdStreak, dateToDateKey } from "@/lib/potd";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Badge } from "@/components/ui/badge";
 import type { LeaderboardEntry } from "@/types";
@@ -20,7 +21,13 @@ export default async function UniversityLeaderboardPage({
       where: { shortName: slug },
       include: {
         users: {
-          include: { platformProfiles: true },
+          include: {
+            platformProfiles: true,
+            potdSolves: {
+              select: { solvedDate: true },
+              orderBy: { solvedDate: "asc" },
+            },
+          },
           where: { platformProfiles: { some: {} } },
         },
       },
@@ -41,6 +48,9 @@ export default async function UniversityLeaderboardPage({
       universityName: university.name,
       totalSolved: computeTotalSolved(user.platformProfiles),
       bestRating: computeBestRating(user.platformProfiles),
+      longestPotdStreak: computePotdStreak(
+        user.potdSolves.map((solve) => dateToDateKey(solve.solvedDate))
+      ).longest,
       platforms: user.platformProfiles.map((p) => ({
         platform: p.platform,
         handle: p.handle,

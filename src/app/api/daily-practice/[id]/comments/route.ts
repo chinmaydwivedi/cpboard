@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { hasAdminAccess } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import {
   COMMENT_COOLDOWN_SECONDS,
@@ -144,4 +145,69 @@ export async function POST(
       },
     },
   });
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  let payload: unknown;
+  try {
+    payload = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const commentId =
+    payload && typeof payload === "object" && "commentId" in payload
+      ? (payload as { commentId?: unknown }).commentId
+      : null;
+
+  if (typeof commentId !== "string" || !commentId.trim()) {
+    return NextResponse.json({ error: "commentId is required" }, { status: 400 });
+  }
+
+  const actor = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true },
+  });
+
+  if (!actor) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  const comment = await prisma.dailyPracticeComment.findFirst({
+    where: {
+      id: commentId,
+      problemId: id,
+    },
+    select: { id: true, userId: true },
+  });
+
+  if (!comment) {
+    return NextResponse.json({ error: "Comment not found" }, { status: 404 });
+  }
+
+  const isOwner = comment.userId === actor.id;
+  let canDelete = isOwner;
+  if (!canDelete) {
+    canDelete = await hasAdminAccess(session.user.email);
+  }
+
+  if (!canDelete) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  await prisma.dailyPracticeComment.delete({
+    where: { id: comment.id },
+  });
+
+  return NextResponse.json({ ok: true });
 }

@@ -28,6 +28,7 @@ export type LeaderboardEntry = {
     rank: string | null;
   }[];
   bestRating: number;
+  longestPotdStreak: number;
 };
 
 export type HeatmapData = Record<

@@ -2,16 +2,21 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { ProblemPlatform, SolutionLanguage } from "@prisma/client";
 import { toast } from "sonner";
 import {
+  Check,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   Flame,
   Lock,
   MessageSquare,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +59,54 @@ type PotdComment = {
   };
 };
 
+type HighlightTokenType =
+  | "plain"
+  | "keyword"
+  | "type"
+  | "string"
+  | "number"
+  | "comment";
+
+type HighlightToken = {
+  text: string;
+  type: HighlightTokenType;
+};
+
+const LANGUAGE_KEYWORDS: Record<string, Set<string>> = {
+  cpp: new Set([
+    "if", "else", "for", "while", "return", "class", "public", "private",
+    "protected", "switch", "case", "break", "continue", "try", "catch",
+    "const", "static", "new", "delete", "using", "namespace", "template",
+    "typename", "auto", "this", "true", "false", "nullptr",
+  ]),
+  java: new Set([
+    "if", "else", "for", "while", "return", "class", "public", "private",
+    "protected", "switch", "case", "break", "continue", "try", "catch",
+    "new", "this", "static", "final", "true", "false", "null", "package",
+    "import", "extends", "implements", "throws", "throw",
+  ]),
+  python: new Set([
+    "if", "elif", "else", "for", "while", "return", "def", "class", "import",
+    "from", "as", "try", "except", "finally", "with", "pass", "break",
+    "continue", "lambda", "in", "is", "not", "and", "or", "True", "False",
+    "None",
+  ]),
+};
+
+const LANGUAGE_TYPES: Record<string, Set<string>> = {
+  cpp: new Set([
+    "int", "long", "bool", "char", "double", "float", "void", "string",
+    "vector", "map", "set", "unordered_map", "unordered_set", "pair",
+    "size_t",
+  ]),
+  java: new Set([
+    "int", "long", "boolean", "char", "double", "float", "void", "String",
+    "List", "ArrayList", "Map", "HashMap", "Set", "HashSet", "Integer",
+    "Long",
+  ]),
+  python: new Set(["int", "float", "bool", "str", "list", "dict", "set", "tuple"]),
+};
+
 function formatDate(dateKey: string): string {
   return new Date(`${dateKey}T00:00:00.000Z`).toLocaleDateString("en-US", {
     weekday: "short",
@@ -61,6 +114,164 @@ function formatDate(dateKey: string): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function parseDateKey(dateKey: string): { year: number; month: number; day: number } {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return { year: y, month: m - 1, day: d };
+}
+
+function dateKeyFromParts(year: number, month: number, day: number): string {
+  return `${year.toString().padStart(4, "0")}-${(month + 1)
+    .toString()
+    .padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+}
+
+function buildCalendarCells(year: number, month: number) {
+  const firstDay = new Date(Date.UTC(year, month, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = index - firstDay + 1;
+    if (day < 1 || day > daysInMonth) return null;
+    return {
+      day,
+      dateKey: dateKeyFromParts(year, month, day),
+    };
+  });
+}
+
+function monthLabel(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 1)).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function normalizeLanguage(language: string | null): string {
+  const value = (language || "").trim().toLowerCase();
+  if (!value) return "text";
+  if (value === "cpp" || value === "c++" || value === "cc") return "cpp";
+  if (value === "py" || value === "python3") return "python";
+  if (value === "javascript" || value === "js") return "javascript";
+  if (value === "ts" || value === "typescript") return "typescript";
+  return value;
+}
+
+function tokenClassName(type: HighlightTokenType) {
+  if (type === "keyword") return "text-fuchsia-400";
+  if (type === "type") return "text-emerald-300";
+  if (type === "string") return "text-amber-300";
+  if (type === "number") return "text-cyan-300";
+  if (type === "comment") return "text-zinc-500 italic";
+  return "text-zinc-100";
+}
+
+function tokenizeCodeLine(line: string, language: string): HighlightToken[] {
+  const keywordSet = LANGUAGE_KEYWORDS[language] ?? new Set<string>();
+  const typeSet = LANGUAGE_TYPES[language] ?? new Set<string>();
+  const tokens: HighlightToken[] = [];
+
+  let cursor = 0;
+  let commentStart = -1;
+  if (language === "python") {
+    commentStart = line.indexOf("#");
+  } else {
+    commentStart = line.indexOf("//");
+  }
+
+  const parseUntil = commentStart >= 0 ? commentStart : line.length;
+
+  while (cursor < parseUntil) {
+    const char = line[cursor];
+
+    if (char === '"' || char === "'") {
+      const quote = char;
+      let end = cursor + 1;
+      while (end < parseUntil) {
+        if (line[end] === quote && line[end - 1] !== "\\") {
+          end += 1;
+          break;
+        }
+        end += 1;
+      }
+      tokens.push({ text: line.slice(cursor, end), type: "string" });
+      cursor = end;
+      continue;
+    }
+
+    if (/[0-9]/.test(char)) {
+      let end = cursor + 1;
+      while (end < parseUntil && /[0-9._]/.test(line[end])) end += 1;
+      tokens.push({ text: line.slice(cursor, end), type: "number" });
+      cursor = end;
+      continue;
+    }
+
+    if (/[A-Za-z_]/.test(char)) {
+      let end = cursor + 1;
+      while (end < parseUntil && /[A-Za-z0-9_]/.test(line[end])) end += 1;
+      const word = line.slice(cursor, end);
+      if (keywordSet.has(word)) {
+        tokens.push({ text: word, type: "keyword" });
+      } else if (typeSet.has(word)) {
+        tokens.push({ text: word, type: "type" });
+      } else {
+        tokens.push({ text: word, type: "plain" });
+      }
+      cursor = end;
+      continue;
+    }
+
+    tokens.push({ text: char, type: "plain" });
+    cursor += 1;
+  }
+
+  if (commentStart >= 0) {
+    tokens.push({ text: line.slice(commentStart), type: "comment" });
+  }
+
+  return tokens;
+}
+
+function CodeSurface({ code, language }: { code: string; language: string | null }) {
+  const normalized = normalizeLanguage(language);
+  const lines = useMemo(() => code.replace(/\r\n?/g, "\n").split("\n"), [code]);
+
+  return (
+    <div className="rounded-md border border-zinc-700/70 bg-[#0b0d12] overflow-hidden">
+      <div className="border-b border-zinc-700/60 px-3 py-1.5 bg-zinc-900/60 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-zinc-500/70" />
+          <span className="h-2.5 w-2.5 rounded-full bg-zinc-500/70" />
+          <span className="h-2.5 w-2.5 rounded-full bg-zinc-500/70" />
+        </div>
+        <span className="text-[10px] font-mono uppercase tracking-wide text-zinc-400">
+          {normalized}
+        </span>
+      </div>
+      <pre className="overflow-x-auto p-3">
+        <code className="font-mono text-[12px] leading-relaxed whitespace-pre">
+          {lines.map((line, lineIndex) => {
+            const tokens = tokenizeCodeLine(line, normalized);
+            return (
+              <span key={`line-${lineIndex}`} className="block">
+                {tokens.map((token, tokenIndex) => (
+                  <span
+                    key={`token-${lineIndex}-${tokenIndex}`}
+                    className={tokenClassName(token.type)}
+                  >
+                    {token.text}
+                  </span>
+                ))}
+                {lineIndex < lines.length - 1 ? "\n" : ""}
+              </span>
+            );
+          })}
+        </code>
+      </pre>
+    </div>
+  );
 }
 
 function CommentBody({ body }: { body: string }) {
@@ -81,16 +292,11 @@ function CommentBody({ body }: { body: string }) {
         }
 
         return (
-          <div key={`code-${index}`} className="rounded-md border border-border/60 bg-background/70 overflow-hidden">
-            <div className="px-3 py-1.5 border-b border-border/50 text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
-              {segment.language || "code"}
-            </div>
-            <pre className="overflow-x-auto p-3">
-              <code className="font-mono text-[12px] leading-relaxed whitespace-pre">
-                {segment.value}
-              </code>
-            </pre>
-          </div>
+          <CodeSurface
+            key={`code-${index}`}
+            code={segment.value}
+            language={segment.language}
+          />
         );
       })}
     </div>
@@ -98,17 +304,23 @@ function CommentBody({ body }: { body: string }) {
 }
 
 export function PotdClient({
+  todayKey,
   selectedDateKey,
   viewer,
   streak: initialStreak,
+  solvedDateKeys,
+  publishedDateKeys,
   hasSolvedCurrent,
   problem,
   archive,
   comments: initialComments,
 }: {
+  todayKey: string;
   selectedDateKey: string | null;
   viewer: { id: string; username: string; name: string | null } | null;
   streak: PotdStreakSummary | null;
+  solvedDateKeys: string[];
+  publishedDateKeys: string[];
   hasSolvedCurrent: boolean;
   problem: PotdProblem | null;
   archive: {
@@ -120,6 +332,7 @@ export function PotdClient({
   }[];
   comments: PotdComment[];
 }) {
+  const router = useRouter();
   const [activeLanguage, setActiveLanguage] = useState<SolutionLanguage | null>(
     problem?.solutions[0]?.language ?? null
   );
@@ -127,16 +340,77 @@ export function PotdClient({
   const [solvedCurrent, setSolvedCurrent] = useState(hasSolvedCurrent);
   const [streak, setStreak] = useState(initialStreak);
   const [comments, setComments] = useState(initialComments);
+  const [localSolvedDates, setLocalSolvedDates] = useState(solvedDateKeys);
   const [commentBody, setCommentBody] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [refreshingComments, setRefreshingComments] = useState(false);
+  const [autoChecking, setAutoChecking] = useState(false);
+  const [autoCheckedProblemId, setAutoCheckedProblemId] = useState<string | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const seed = selectedDateKey ?? problem?.dateKey ?? todayKey;
+    const parsed = parseDateKey(seed);
+    return { year: parsed.year, month: parsed.month };
+  });
 
   useEffect(() => {
     setActiveLanguage(problem?.solutions[0]?.language ?? null);
     setSolvedCurrent(hasSolvedCurrent);
     setComments(initialComments);
     setStreak(initialStreak);
-  }, [problem, hasSolvedCurrent, initialComments, initialStreak]);
+    setLocalSolvedDates(solvedDateKeys);
+    const seed = selectedDateKey ?? problem?.dateKey ?? todayKey;
+    const parsed = parseDateKey(seed);
+    setCalendarMonth({ year: parsed.year, month: parsed.month });
+    setAutoCheckedProblemId(null);
+  }, [
+    problem,
+    hasSolvedCurrent,
+    initialComments,
+    initialStreak,
+    solvedDateKeys,
+    selectedDateKey,
+    todayKey,
+  ]);
+
+  useEffect(() => {
+    if (!viewer || !problem || solvedCurrent) return;
+    if (autoCheckedProblemId === problem.id) return;
+    if (problem.platform !== "LEETCODE" && problem.platform !== "CODEFORCES") return;
+
+    setAutoCheckedProblemId(problem.id);
+    setAutoChecking(true);
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/potd/auto-solve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ problemId: problem.id }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) return;
+        if (!data?.solved) return;
+
+        setSolvedCurrent(true);
+        setLocalSolvedDates((prev) =>
+          prev.includes(problem.dateKey) ? prev : [...prev, problem.dateKey]
+        );
+        if (data?.streak) {
+          setStreak(data.streak);
+        }
+        if (data?.auto && data?.source) {
+          const sourceLabel = data.source === "LEETCODE" ? "LeetCode" : "Codeforces";
+          toast.success(`Auto-marked solved from ${sourceLabel} accepted submission`);
+        }
+      } catch {
+        // auto-check is best-effort; ignore transient errors
+      } finally {
+        setAutoChecking(false);
+      }
+    })();
+  }, [viewer, problem, solvedCurrent, autoCheckedProblemId]);
 
   const refreshComments = useCallback(async (silent = false) => {
     if (!problem) return;
@@ -184,6 +458,9 @@ export function PotdClient({
       if (data.streak) {
         setStreak(data.streak);
       }
+      setLocalSolvedDates((prev) =>
+        prev.includes(problem.dateKey) ? prev : [...prev, problem.dateKey]
+      );
       toast.success("Marked as solved. Nice consistency.");
     } catch {
       toast.error("Failed to mark problem as solved");
@@ -225,6 +502,43 @@ export function PotdClient({
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    if (!problem || !viewer || deletingCommentId) return;
+    setDeletingCommentId(commentId);
+    try {
+      const res = await fetch(`/api/daily-practice/${problem.id}/comments`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to delete comment");
+        return;
+      }
+      setComments((prev) => prev.filter((comment) => comment.id !== commentId));
+      toast.success("Comment deleted");
+    } catch {
+      toast.error("Failed to delete comment");
+    } finally {
+      setDeletingCommentId(null);
+    }
+  };
+
+  const solvedDateSet = useMemo(
+    () => new Set(localSolvedDates),
+    [localSolvedDates]
+  );
+  const publishedDateSet = useMemo(() => {
+    const merged = new Set(publishedDateKeys);
+    if (problem?.dateKey) merged.add(problem.dateKey);
+    return merged;
+  }, [publishedDateKeys, problem?.dateKey]);
+  const calendarCells = useMemo(
+    () => buildCalendarCells(calendarMonth.year, calendarMonth.month),
+    [calendarMonth]
+  );
+
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
       <div className="mb-7" data-tour="potd-header">
@@ -243,6 +557,106 @@ export function PotdClient({
         </div>
       ) : (
         <>
+          <section className="rounded-lg border border-border/60 p-5 mb-6" data-tour="potd-calendar">
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div>
+                <p className="text-sm font-medium">POTD Calendar</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Tick marks show days you completed POTD.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  onClick={() =>
+                    setCalendarMonth((prev) => {
+                      const month = prev.month - 1;
+                      if (month < 0) return { year: prev.year - 1, month: 11 };
+                      return { year: prev.year, month };
+                    })
+                  }
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  onClick={() =>
+                    setCalendarMonth((prev) => {
+                      const month = prev.month + 1;
+                      if (month > 11) return { year: prev.year + 1, month: 0 };
+                      return { year: prev.year, month };
+                    })
+                  }
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-sm font-medium mb-3">
+              {monthLabel(calendarMonth.year, calendarMonth.month)}
+            </p>
+
+            <div className="grid grid-cols-7 gap-1.5 text-[11px] text-muted-foreground mb-2">
+              {["S", "M", "T", "W", "T", "F", "S"].map((label, index) => (
+                <div
+                  key={`${label}-${index}`}
+                  className="h-8 flex items-center justify-center font-medium"
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-1.5">
+              {calendarCells.map((cell, index) => {
+                if (!cell) {
+                  return <div key={`empty-${index}`} className="h-9 rounded-md" />;
+                }
+
+                const isSolved = solvedDateSet.has(cell.dateKey);
+                const isToday = cell.dateKey === todayKey;
+                const isProblemDay = problem ? cell.dateKey === problem.dateKey : false;
+                const isPublishedDay = publishedDateSet.has(cell.dateKey);
+
+                return (
+                  <button
+                    type="button"
+                    key={cell.dateKey}
+                    onClick={() => {
+                      if (!isPublishedDay) return;
+                      router.push(`/potd?date=${cell.dateKey}`);
+                    }}
+                    disabled={!isPublishedDay}
+                    className={`h-9 rounded-md border flex items-center justify-center text-sm relative transition-colors ${
+                      isSolved
+                        ? "border-primary/40 bg-primary/10 text-primary"
+                        : isPublishedDay
+                          ? "border-border/60 text-muted-foreground hover:bg-secondary/30"
+                          : "border-border/35 text-muted-foreground/45"
+                    } ${isToday ? "ring-1 ring-primary/40" : ""} ${
+                      isProblemDay ? "font-semibold" : ""
+                    }`}
+                    title={
+                      isPublishedDay
+                        ? `${cell.dateKey} (Open POTD)`
+                        : `${cell.dateKey} (No POTD published)`
+                    }
+                  >
+                    {cell.day}
+                    {isSolved ? (
+                      <Check className="h-3 w-3 absolute top-1 right-1 text-primary" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
           <div className="grid gap-3 sm:grid-cols-3 mb-6" data-tour="potd-streak">
             <div className="rounded-lg border border-border/60 p-4">
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
@@ -312,18 +726,28 @@ export function PotdClient({
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               {viewer ? (
-                <Button
-                  type="button"
-                  onClick={handleMarkSolved}
-                  disabled={solvedCurrent || markingSolved}
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                  {solvedCurrent
-                    ? "Solved"
-                    : markingSolved
-                      ? "Marking..."
-                      : "Mark as solved"}
-                </Button>
+                <>
+                  <Button
+                    type="button"
+                    onClick={handleMarkSolved}
+                    disabled={solvedCurrent || markingSolved}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                    {solvedCurrent
+                      ? "Solved"
+                      : markingSolved
+                        ? "Marking..."
+                        : "Mark as solved"}
+                  </Button>
+                  {!solvedCurrent &&
+                    autoChecking &&
+                    (problem.platform === "LEETCODE" ||
+                      problem.platform === "CODEFORCES") && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Checking accepted submissions...
+                      </p>
+                    )}
+                </>
               ) : (
                 <Link
                   href="/login"
@@ -440,9 +864,26 @@ export function PotdClient({
                         </p>
                       </div>
                     </div>
-                    <span className="text-[11px] text-muted-foreground font-mono">
-                      {new Date(comment.createdAt).toLocaleString()}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground font-mono">
+                        {new Date(comment.createdAt).toLocaleString()}
+                      </span>
+                      {viewer?.id === comment.user.id ? (
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => {
+                            void handleDeleteComment(comment.id);
+                          }}
+                          disabled={deletingCommentId === comment.id}
+                          aria-label="Delete comment"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                   <CommentBody body={comment.body} />
                 </div>
