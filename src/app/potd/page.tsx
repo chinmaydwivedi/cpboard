@@ -24,11 +24,7 @@ async function findPublishedProblemByDateKey(dateKey: string) {
         lt: bounds.end,
       },
     },
-    include: {
-      solutions: {
-        orderBy: { language: "asc" },
-      },
-    },
+    select: { id: true },
   });
 }
 
@@ -70,17 +66,19 @@ export default async function PotdPage({
     viewer = null;
   }
 
-  const [selectedProblem, todayProblem, latestProblem, archiveRaw, solvedEntries] =
+  const [
+    selectedProblemMeta,
+    todayProblemMeta,
+    latestProblemMeta,
+    archiveRaw,
+    solvedEntries,
+  ] =
     await Promise.all([
       selectedDateKey ? findPublishedProblemByDateKey(selectedDateKey) : null,
       findPublishedProblemByDateKey(todayKey),
       prisma.dailyPracticeProblem.findFirst({
         where: { isPublished: true },
-        include: {
-          solutions: {
-            orderBy: { language: "asc" },
-          },
-        },
+        select: { id: true },
         orderBy: { date: "desc" },
       }),
       prisma.dailyPracticeProblem.findMany({
@@ -104,30 +102,41 @@ export default async function PotdPage({
         : Promise.resolve([]),
     ]);
 
-  const problem = selectedProblem ?? todayProblem ?? latestProblem;
+  const problemId =
+    selectedProblemMeta?.id ?? todayProblemMeta?.id ?? latestProblemMeta?.id ?? null;
 
-  const comments = problem
-    ? await prisma.dailyPracticeComment.findMany({
-        where: {
-          problemId: problem.id,
-        },
-        orderBy: { createdAt: "asc" },
-        take: 200,
-        select: {
-          id: true,
-          body: true,
-          createdAt: true,
-          user: {
-            select: {
-              id: true,
-              username: true,
-              name: true,
-              avatarUrl: true,
+  const [problem, comments] = problemId
+    ? await Promise.all([
+        prisma.dailyPracticeProblem.findUnique({
+          where: { id: problemId },
+          include: {
+            solutions: {
+              orderBy: { language: "asc" },
             },
           },
-        },
-      })
-    : [];
+        }),
+        prisma.dailyPracticeComment.findMany({
+          where: {
+            problemId,
+          },
+          orderBy: { createdAt: "asc" },
+          take: 200,
+          select: {
+            id: true,
+            body: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                name: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        }),
+      ])
+    : [null, []];
 
   const solvedDateKeys = solvedEntries.map((entry) => dateToDateKey(entry.solvedDate));
   const solvedProblemIds = new Set(solvedEntries.map((entry) => entry.problemId));

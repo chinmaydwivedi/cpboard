@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { dateToDateKey, isPotdStreakExcludedDateKey } from "@/lib/potd";
 import { prisma } from "@/lib/prisma";
 import {
   upsertPotdSolveAndGetStreak,
@@ -67,15 +68,24 @@ export async function POST(req: NextRequest) {
     user.platformProfiles.find((profile) => profile.platform === "CODEFORCES")
       ?.handle ?? null;
 
-  const verification = await verifyPotdSolvedFromExternal({
-    platform: problem.platform,
-    problemUrl: problem.problemUrl,
-    leetcodeHandle,
-    codeforcesHandle,
-  });
+  const problemDateKey = dateToDateKey(problem.date);
+  const streakExcluded = isPotdStreakExcludedDateKey(problemDateKey);
+  let verifiedSource: "LEETCODE" | "CODEFORCES" | null = null;
 
-  if (!verification.verified) {
-    return NextResponse.json({ error: verification.reason }, { status: 400 });
+  if (!streakExcluded) {
+    const verification = await verifyPotdSolvedFromExternal({
+      platform: problem.platform,
+      problemUrl: problem.problemUrl,
+      leetcodeHandle,
+      codeforcesHandle,
+      verifyDateKey: problemDateKey,
+    });
+
+    if (!verification.verified) {
+      return NextResponse.json({ error: verification.reason }, { status: 400 });
+    }
+
+    verifiedSource = verification.source;
   }
 
   const streak = await upsertPotdSolveAndGetStreak({
@@ -91,7 +101,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    source: verification.source,
+    streakExcluded,
+    ...(verifiedSource ? { source: verifiedSource } : {}),
     streak,
   });
 }

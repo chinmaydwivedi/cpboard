@@ -183,7 +183,7 @@ export async function verifyPotdSolvedFromExternal(args: {
         : {
             verified: false,
             reason:
-              "No accepted LeetCode submission found for this POTD today (IST).",
+              "No accepted LeetCode submission found for this POTD on its date (IST).",
           };
     } catch {
       return {
@@ -212,7 +212,7 @@ export async function verifyPotdSolvedFromExternal(args: {
         : {
             verified: false,
             reason:
-              "No accepted Codeforces submission found for this POTD today (IST).",
+              "No accepted Codeforces submission found for this POTD on its date (IST).",
           };
     } catch {
       return {

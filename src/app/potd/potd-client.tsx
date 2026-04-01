@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ProblemPlatform, SolutionLanguage } from "@prisma/client";
 import { toast } from "sonner";
@@ -59,6 +59,14 @@ type PotdComment = {
   };
 };
 
+type PotdArchiveEntry = {
+  id: string;
+  dateKey: string;
+  title: string;
+  platform: ProblemPlatform;
+  difficulty: string | null;
+};
+
 type HighlightTokenType =
   | "plain"
   | "keyword"
@@ -106,6 +114,7 @@ const LANGUAGE_TYPES: Record<string, Set<string>> = {
   ]),
   python: new Set(["int", "float", "bool", "str", "list", "dict", "set", "tuple"]),
 };
+const ARCHIVE_PAGE_SIZE = 5;
 
 function formatDate(dateKey: string): string {
   return new Date(`${dateKey}T00:00:00.000Z`).toLocaleDateString("en-US", {
@@ -146,6 +155,26 @@ function monthLabel(year: number, month: number) {
     month: "long",
     year: "numeric",
   });
+}
+
+function findArchivePageIndex(
+  archive: PotdArchiveEntry[],
+  selectedDateKey: string | null,
+  currentProblemId: string | null
+): number {
+  if (archive.length === 0) return 0;
+
+  if (selectedDateKey) {
+    const dateMatch = archive.findIndex((entry) => entry.dateKey === selectedDateKey);
+    if (dateMatch >= 0) return Math.floor(dateMatch / ARCHIVE_PAGE_SIZE);
+  }
+
+  if (currentProblemId) {
+    const problemMatch = archive.findIndex((entry) => entry.id === currentProblemId);
+    if (problemMatch >= 0) return Math.floor(problemMatch / ARCHIVE_PAGE_SIZE);
+  }
+
+  return 0;
 }
 
 function normalizeLanguage(language: string | null): string {
@@ -323,16 +352,11 @@ export function PotdClient({
   publishedDateKeys: string[];
   hasSolvedCurrent: boolean;
   problem: PotdProblem | null;
-  archive: {
-    id: string;
-    dateKey: string;
-    title: string;
-    platform: ProblemPlatform;
-    difficulty: string | null;
-  }[];
+  archive: PotdArchiveEntry[];
   comments: PotdComment[];
 }) {
   const router = useRouter();
+  const [isDateTransitionPending, startDateTransition] = useTransition();
   const [activeLanguage, setActiveLanguage] = useState<SolutionLanguage | null>(
     problem?.solutions[0]?.language ?? null
   );
@@ -345,6 +369,9 @@ export function PotdClient({
   const [postingComment, setPostingComment] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [refreshingComments, setRefreshingComments] = useState(false);
+  const [archivePage, setArchivePage] = useState(() =>
+    findArchivePageIndex(archive, selectedDateKey, problem?.id ?? null)
+  );
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const seed = selectedDateKey ?? problem?.dateKey ?? todayKey;
     const parsed = parseDateKey(seed);
@@ -369,6 +396,19 @@ export function PotdClient({
     selectedDateKey,
     todayKey,
   ]);
+
+  useEffect(() => {
+    setArchivePage(findArchivePageIndex(archive, selectedDateKey, problem?.id ?? null));
+  }, [archive, selectedDateKey, problem?.id]);
+
+  const goToDate = useCallback(
+    (dateKey: string) => {
+      startDateTransition(() => {
+        router.push(`/potd?date=${dateKey}`, { scroll: false });
+      });
+    },
+    [router]
+  );
 
   const refreshComments = useCallback(async (silent = false) => {
     if (!problem) return;
@@ -397,6 +437,22 @@ export function PotdClient({
     return () => window.clearInterval(timer);
   }, [problem, refreshComments]);
 
+  useEffect(() => {
+    if (!problem) return;
+
+    const ordered = [...new Set([problem.dateKey, ...archive.map((entry) => entry.dateKey)])]
+      .sort((a, b) => b.localeCompare(a));
+    const index = ordered.indexOf(problem.dateKey);
+    if (index < 0) return;
+
+    const adjacentDateKeys = [ordered[index - 1], ordered[index + 1]].filter(
+      (value): value is string => typeof value === "string"
+    );
+    for (const dateKey of adjacentDateKeys) {
+      router.prefetch(`/potd?date=${dateKey}`);
+    }
+  }, [archive, problem, router]);
+
   const handleMarkSolved = async () => {
     if (!problem || !viewer || solvedCurrent || markingSolved) return;
     setMarkingSolved(true);
@@ -419,6 +475,12 @@ export function PotdClient({
       setLocalSolvedDates((prev) =>
         prev.includes(problem.dateKey) ? prev : [...prev, problem.dateKey]
       );
+      if (data.streakExcluded) {
+        toast.success(
+          "Marked solved for the grace day. This POTD does not change streak points."
+        );
+        return;
+      }
       if (data.source) {
         const sourceLabel = data.source === "LEETCODE" ? "LeetCode" : "Codeforces";
         toast.success(`Verified from ${sourceLabel} and marked solved.`);
@@ -501,6 +563,17 @@ export function PotdClient({
     () => buildCalendarCells(calendarMonth.year, calendarMonth.month),
     [calendarMonth]
   );
+  const totalArchivePages = Math.max(1, Math.ceil(archive.length / ARCHIVE_PAGE_SIZE));
+  const clampedArchivePage = Math.min(archivePage, totalArchivePages - 1);
+  const pagedArchive = useMemo(() => {
+    const start = clampedArchivePage * ARCHIVE_PAGE_SIZE;
+    return archive.slice(start, start + ARCHIVE_PAGE_SIZE);
+  }, [archive, clampedArchivePage]);
+
+  useEffect(() => {
+    if (archivePage === clampedArchivePage) return;
+    setArchivePage(clampedArchivePage);
+  }, [archivePage, clampedArchivePage]);
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
@@ -510,6 +583,21 @@ export function PotdClient({
           Daily practice with editorials and community discussion.
         </p>
       </div>
+
+      {!viewer ? (
+        <div className="mb-6 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+          <p className="text-sm font-medium">Sign up first to track POTD progress.</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Create an account to mark POTD as solved, join discussions, and build your streak.
+          </p>
+          <Link
+            href="/login"
+            className="inline-flex mt-2 text-xs font-medium text-primary hover:underline"
+          >
+            Go to sign up / login
+          </Link>
+        </div>
+      ) : null}
 
       {!problem ? (
         <div className="rounded-lg border border-border/60 p-8 text-center">
@@ -527,6 +615,11 @@ export function PotdClient({
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   Tick marks show days you completed POTD.
                 </p>
+                {isDateTransitionPending ? (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Loading selected day...
+                  </p>
+                ) : null}
               </div>
               <div className="flex items-center gap-1.5">
                 <Button
@@ -592,7 +685,11 @@ export function PotdClient({
                     key={cell.dateKey}
                     onClick={() => {
                       if (!isPublishedDay) return;
-                      router.push(`/potd?date=${cell.dateKey}`);
+                      goToDate(cell.dateKey);
+                    }}
+                    onMouseEnter={() => {
+                      if (!isPublishedDay) return;
+                      router.prefetch(`/potd?date=${cell.dateKey}`);
                     }}
                     disabled={!isPublishedDay}
                     className={`h-9 rounded-md border flex items-center justify-center text-sm relative transition-colors ${
@@ -644,7 +741,9 @@ export function PotdClient({
                   </p>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground mt-2">Sign in to track your streak.</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Sign up first to track your streak.
+                </p>
               )}
             </div>
             <div className="rounded-lg border border-border/60 p-4">
@@ -709,7 +808,7 @@ export function PotdClient({
                   className="inline-flex h-8 items-center rounded-lg border border-border bg-background px-2.5 text-sm font-medium hover:bg-muted transition-colors"
                 >
                   <Lock className="h-3.5 w-3.5 mr-1.5" />
-                  Sign in to track streak
+                  Sign up first for POTD
                 </Link>
               )}
             </div>
@@ -798,7 +897,7 @@ export function PotdClient({
               </div>
             ) : (
               <div className="rounded-md border border-border/60 bg-background/60 px-3 py-2 mb-4 text-sm text-muted-foreground">
-                Sign in to join the discussion and share code snippets.
+                Sign up first to join the discussion and share code snippets.
               </div>
             )}
 
@@ -850,9 +949,38 @@ export function PotdClient({
           </section>
 
           <section className="rounded-lg border border-border/60 p-5" data-tour="potd-archive">
-            <p className="text-sm font-medium mb-3">Archive</p>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">Archive</p>
+              {archive.length > 0 ? (
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setArchivePage((prev) => Math.max(0, prev - 1))}
+                    disabled={clampedArchivePage === 0}
+                  >
+                    Prev
+                  </Button>
+                  <span className="text-[11px] font-mono text-muted-foreground">
+                    {clampedArchivePage + 1}/{totalArchivePages}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setArchivePage((prev) => Math.min(totalArchivePages - 1, prev + 1))
+                    }
+                    disabled={clampedArchivePage >= totalArchivePages - 1}
+                  >
+                    Next
+                  </Button>
+                </div>
+              ) : null}
+            </div>
             <div className="space-y-2">
-              {archive.map((entry) => {
+              {pagedArchive.map((entry) => {
                 const selected = selectedDateKey
                   ? selectedDateKey === entry.dateKey
                   : problem.id === entry.id;
@@ -860,6 +988,10 @@ export function PotdClient({
                   <Link
                     key={entry.id}
                     href={`/potd?date=${entry.dateKey}`}
+                    prefetch
+                    onMouseEnter={() => {
+                      router.prefetch(`/potd?date=${entry.dateKey}`);
+                    }}
                     className={`block rounded-md border px-3 py-2 transition-colors ${
                       selected
                         ? "border-primary/40 bg-primary/8"

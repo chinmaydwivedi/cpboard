@@ -3,12 +3,14 @@ import type { ProblemPlatform, SolutionLanguage } from "@prisma/client";
 export const IST_TIME_ZONE = "Asia/Kolkata";
 export const MAX_COMMENT_LENGTH = 2000;
 export const COMMENT_COOLDOWN_SECONDS = 12;
+export const POTD_GRACE_SOLVE_DATE_KEY = "2026-04-01";
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const IST_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   timeZone: IST_TIME_ZONE,
 });
+const POTD_STREAK_EXCLUDED_DATE_KEYS = new Set([POTD_GRACE_SOLVE_DATE_KEY]);
 
 export const POTD_LANGUAGES: readonly SolutionLanguage[] = [
   "JAVA",
@@ -43,6 +45,10 @@ export type CommentSegment =
 
 export function isDateKey(value: string): boolean {
   return DATE_KEY_RE.test(value);
+}
+
+export function isPotdStreakExcludedDateKey(dateKey: string): boolean {
+  return POTD_STREAK_EXCLUDED_DATE_KEYS.has(dateKey);
 }
 
 export function getIstDateKey(date = new Date()): string {
@@ -81,7 +87,13 @@ export function computePotdStreak(
   solvedDateKeys: string[],
   todayKey = getIstDateKey()
 ): PotdStreakSummary {
-  const unique = [...new Set(solvedDateKeys.filter(isDateKey))].sort();
+  const unique = [
+    ...new Set(
+      solvedDateKeys.filter(
+        (dateKey) => isDateKey(dateKey) && !isPotdStreakExcludedDateKey(dateKey)
+      )
+    ),
+  ].sort();
   if (unique.length === 0) {
     return {
       current: 0,
