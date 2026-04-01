@@ -5,9 +5,11 @@ export type TourId =
   | "leaderboard"
   | "universityBoard"
   | "cpRankings"
+  | "potd"
   | "dashboard"
   | "publicProfile"
-  | "changelog";
+  | "changelog"
+  | "adminDailyPractice";
 
 const SEL = (name: string) => `[data-tour="${name}"]`;
 
@@ -16,7 +18,7 @@ const navStep: DriveStep = {
   popover: {
     title: "Site navigation",
     description:
-      "Open Leaderboard, CP Rankings (Codeforces-focused), and Dashboard (when signed in). On the right, use Sync All, page tours, and What’s New/Changelog.",
+      "Open Leaderboard, CP Rankings, POTD, and Dashboard (when signed in). On the right, use Sync All, page tours, and What’s New/Changelog.",
     side: "bottom",
     align: "center",
   },
@@ -139,6 +141,63 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       popover: {
         title: "Ranked list",
         description: "Sorted by current Codeforces rating. Links go to public profiles and Codeforces.",
+        side: "top",
+      },
+    },
+  ],
+  potd: [
+    navStep,
+    {
+      element: SEL("potd-header"),
+      popover: {
+        title: "Daily practice",
+        description:
+          "Problem of the Day (POTD) gives one focused problem each day with admin-written solutions.",
+        side: "bottom",
+      },
+    },
+    {
+      element: SEL("potd-streak"),
+      popover: {
+        title: "Streak tracking",
+        description:
+          "Sign in and mark the POTD as solved to build your personal daily streak.",
+        side: "bottom",
+      },
+    },
+    {
+      element: SEL("potd-problem"),
+      popover: {
+        title: "Problem card",
+        description:
+          "Open the official problem link and mark it solved after finishing.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("potd-solutions"),
+      popover: {
+        title: "Language tabs",
+        description:
+          "Review Java, C++, and Python reference solutions and explanations.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("potd-comments"),
+      popover: {
+        title: "Discussion",
+        description:
+          "Ask questions, compare approaches, and share fenced code blocks in comments.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("potd-archive"),
+      popover: {
+        title: "Archive",
+        description:
+          "Jump to earlier POTD entries to practice older problems and discussions.",
         side: "top",
       },
     },
@@ -269,6 +328,36 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       },
     },
   ],
+  adminDailyPractice: [
+    navStep,
+    {
+      element: SEL("admin-potd-header"),
+      popover: {
+        title: "POTD admin",
+        description:
+          "Manage daily practice entries from this admin-only page.",
+        side: "bottom",
+      },
+    },
+    {
+      element: SEL("admin-potd-form"),
+      popover: {
+        title: "Create and edit",
+        description:
+          "Set date/platform/details and add Java, C++, and Python solutions.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("admin-potd-list"),
+      popover: {
+        title: "Publish control",
+        description:
+          "Review recent entries, toggle publish state, or edit existing days.",
+        side: "top",
+      },
+    },
+  ],
 };
 
 export function tourIdForPathname(pathname: string): TourId | null {
@@ -277,7 +366,9 @@ export function tourIdForPathname(pathname: string): TourId | null {
   if (pathname === "/leaderboard") return "leaderboard";
   if (/^\/leaderboard\/[^/]+$/.test(pathname)) return "universityBoard";
   if (pathname === "/cp-rankings") return "cpRankings";
+  if (pathname === "/potd" || pathname === "/daily-practice") return "potd";
   if (pathname === "/dashboard") return "dashboard";
+  if (pathname === "/admin/daily-practice") return "adminDailyPractice";
   if (/^\/u\/[^/]+$/.test(pathname)) return "publicProfile";
   return null;
 }

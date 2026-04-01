@@ -1,5 +1,5 @@
 /** Bump when tour copy or steps change so users can see updates. */
-export const WALKTHROUGH_VERSION = "v1";
+export const WALKTHROUGH_VERSION = "v2";
 
 export function tourDoneKey(tourId: string) {
   return `cpboard_tour_done_${WALKTHROUGH_VERSION}_${tourId}`;

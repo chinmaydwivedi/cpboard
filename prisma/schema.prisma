@@ -25,6 +25,19 @@ enum SyncStatus {
   FAILED
 }
 
+enum ProblemPlatform {
+  LEETCODE
+  CODEFORCES
+  ATCODER
+  CODECHEF
+}
+
+enum SolutionLanguage {
+  JAVA
+  CPP
+  PYTHON
+}
+
 model University {
   id          String   @id @default(cuid())
   name        String
@@ -59,6 +72,10 @@ model User {
   accounts         Account[]
   sessions         Session[]
   pageVisits       PageVisit[]
+  dailyPracticeProblemsCreated DailyPracticeProblem[]  @relation("DailyPracticeProblemsCreated")
+  dailyPracticeSolutionsCreated DailyPracticeSolution[] @relation("DailyPracticeSolutionsCreated")
+  dailyPracticeComments DailyPracticeComment[]
+  potdSolves PotdSolve[]
 
   @@index([universityId])
   @@index([username])
@@ -164,4 +181,73 @@ model PageVisit {
   @@index([path, createdAt])
   @@index([viewerUserId, createdAt])
   @@index([visitorId, path, createdAt])
+}
+
+model DailyPracticeProblem {
+  id          String          @id @default(cuid())
+  date        DateTime        @unique @db.Date
+  platform    ProblemPlatform
+  title       String
+  problemUrl  String
+  difficulty  String?
+  notes       String?
+  isPublished Boolean         @default(false)
+  createdById String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  createdBy User @relation("DailyPracticeProblemsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  solutions DailyPracticeSolution[]
+  comments  DailyPracticeComment[]
+  solves    PotdSolve[]
+
+  @@index([date])
+  @@index([isPublished, date])
+  @@index([createdById])
+}
+
+model DailyPracticeSolution {
+  id          String           @id @default(cuid())
+  problemId   String
+  language    SolutionLanguage
+  code        String           @db.Text
+  explanation String?          @db.Text
+  createdById String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  problem   DailyPracticeProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  createdBy User                @relation("DailyPracticeSolutionsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, language])
+  @@index([createdById])
+}
+
+model DailyPracticeComment {
+  id        String   @id @default(cuid())
+  problemId String
+  userId    String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  problem DailyPracticeProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([problemId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model PotdSolve {
+  id        String   @id @default(cuid())
+  problemId String
+  userId    String
+  solvedAt  DateTime @default(now())
+  solvedDate DateTime @db.Date
+
+  problem DailyPracticeProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, userId])
+  @@index([userId, solvedDate])
 }
