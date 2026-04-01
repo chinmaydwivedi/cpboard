@@ -101,7 +101,7 @@ export function Navbar({
 
   return (
     <header data-tour="site-header" className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-      <nav className="mx-auto flex h-14 max-w-5xl items-center justify-between px-5">
+      <nav className="mx-auto flex h-14 max-w-7xl items-center justify-between px-8">
         <Link href="/" className="flex items-center">
           <span className="font-semibold text-[15px] tracking-tight">CP Board</span>
         </Link>
