@@ -1,6 +1,13 @@
 import type { DriveStep } from "driver.js";
 
-export type TourId = "home" | "leaderboard" | "universityBoard" | "cpRankings" | "dashboard" | "publicProfile";
+export type TourId =
+  | "home"
+  | "leaderboard"
+  | "universityBoard"
+  | "cpRankings"
+  | "dashboard"
+  | "publicProfile"
+  | "changelog";
 
 const SEL = (name: string) => `[data-tour="${name}"]`;
 
@@ -9,7 +16,7 @@ const navStep: DriveStep = {
   popover: {
     title: "Site navigation",
     description:
-      "Open Leaderboard, CP Rankings (Codeforces-focused), and Dashboard (when signed in). On the right, use Sync All to refresh every linked platform and Tour for guided walkthroughs.",
+      "Open Leaderboard, CP Rankings (Codeforces-focused), and Dashboard (when signed in). On the right, use Sync All, page tours, and What’s New/Changelog.",
     side: "bottom",
     align: "center",
   },
@@ -232,10 +239,41 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       },
     },
   ],
+  changelog: [
+    navStep,
+    {
+      element: SEL("changelog-header"),
+      popover: {
+        title: "Changelog",
+        description:
+          "This page summarizes recent product updates so users can quickly see what changed.",
+        side: "bottom",
+      },
+    },
+    {
+      element: SEL("changelog-latest"),
+      popover: {
+        title: "Latest release",
+        description:
+          "Highlights from the most recent deployment with concise, high-impact notes.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("changelog-history"),
+      popover: {
+        title: "Release history",
+        description:
+          "Browse previous releases and improvements when you want full context.",
+        side: "top",
+      },
+    },
+  ],
 };
 
 export function tourIdForPathname(pathname: string): TourId | null {
   if (pathname === "/") return "home";
+  if (pathname === "/changelog") return "changelog";
   if (pathname === "/leaderboard") return "leaderboard";
   if (/^\/leaderboard\/[^/]+$/.test(pathname)) return "universityBoard";
   if (pathname === "/cp-rankings") return "cpRankings";

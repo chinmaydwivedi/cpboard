@@ -7,7 +7,9 @@ import { unstable_noStore as noStore } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAllowlistedAdminEmail } from "@/lib/admin";
+import { getActiveReleaseId } from "@/lib/changelog";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
+import { WhatsNewModal } from "@/components/whats-new";
 import { Toaster } from "@/components/ui/sonner";
 import { WalkthroughHost } from "@/components/walkthrough/walkthrough-host";
 import "./globals.css";
@@ -39,6 +41,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const activeReleaseId = getActiveReleaseId();
   let navUser:
     | {
         id: string;
@@ -93,6 +96,7 @@ export default async function RootLayout({
                   : null
               }
             />
+            <WhatsNewModal releaseId={activeReleaseId} />
             <WalkthroughHost />
             <main className="flex-1">{children}</main>
             <footer className="border-t border-border/40 py-6 mt-12">

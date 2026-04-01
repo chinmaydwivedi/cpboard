@@ -13,6 +13,8 @@ import {
   LogOut,
   User,
   CircleHelp,
+  BookText,
+  Sparkles,
   RefreshCw,
   Shield,
 } from "lucide-react";
@@ -21,10 +23,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { tourIdForPathname } from "@/components/walkthrough/tours";
 import { runWalkthrough } from "@/components/walkthrough/run-walkthrough";
+import { openWhatsNewModal } from "@/components/whats-new";
 import { toast } from "sonner";
 
 const links = [
@@ -132,26 +136,37 @@ export function Navbar({
               <RefreshCw className={`h-4 w-4 ${syncingAll ? "animate-spin" : ""}`} />
             </button>
           )}
-          {pageTourId && (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                className="hidden sm:inline-flex items-center justify-center rounded-md border border-border/60 p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors outline-none"
-                aria-label="Help and tour"
-              >
-                <CircleHelp className="h-4 w-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[11rem]">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="hidden sm:inline-flex items-center justify-center rounded-md border border-border/60 p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors outline-none"
+              aria-label="Help and updates"
+            >
+              <CircleHelp className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[12rem]">
+              {pageTourId && (
                 <DropdownMenuItem
                   onClick={() => {
                     const ok = runWalkthrough(pageTourId);
-                    if (!ok) toast.message("Tour unavailable", { description: "This page has no tour targets yet." });
+                    if (!ok) {
+                      toast.message("Tour unavailable", {
+                        description: "This page has no tour targets yet.",
+                      });
+                    }
                   }}
                 >
                   Tour this page
                 </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+              )}
+              {pageTourId && <DropdownMenuSeparator />}
+              <DropdownMenuItem onClick={() => openWhatsNewModal()}>
+                <Sparkles className="h-3.5 w-3.5" /> What&apos;s new
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/changelog")}>
+                <BookText className="h-3.5 w-3.5" /> Changelog
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {user ? (
             <div className="relative" ref={dropdownRef}>
               <button
@@ -235,6 +250,23 @@ export function Navbar({
               <CircleHelp className="h-3.5 w-3.5" /> Tour this page
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              setMobileOpen(false);
+              openWhatsNewModal();
+            }}
+            className="flex items-center gap-2 w-full px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5" /> What&apos;s new
+          </button>
+          <Link
+            href="/changelog"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-2 px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <BookText className="h-3.5 w-3.5" /> Changelog
+          </Link>
           {links.map((link) => {
             const Icon = link.icon;
             return (
