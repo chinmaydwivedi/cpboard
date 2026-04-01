@@ -4,7 +4,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { Trophy, Zap, LayoutDashboard, Menu, X, LogOut, User, CircleHelp, RefreshCw } from "lucide-react";
+import {
+  Trophy,
+  Zap,
+  LayoutDashboard,
+  Menu,
+  X,
+  LogOut,
+  User,
+  CircleHelp,
+  RefreshCw,
+  Shield,
+} from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import {
   DropdownMenu,
@@ -22,7 +33,11 @@ const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 
-export function Navbar({ user }: { user?: { name?: string | null; username?: string } | null }) {
+export function Navbar({
+  user,
+}: {
+  user?: { name?: string | null; username?: string; isAdmin?: boolean } | null;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -164,6 +179,15 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
                   >
                     <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
                   </Link>
+                  {user.isAdmin && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setDropdownOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                    >
+                      <Shield className="h-3.5 w-3.5" /> Admin
+                    </Link>
+                  )}
                   <div className="border-t border-border/40 my-1" />
                   <button
                     onClick={() => signOut({ callbackUrl: "/" })}
@@ -230,6 +254,15 @@ export function Navbar({ user }: { user?: { name?: string | null; username?: str
               >
                 <User className="h-3.5 w-3.5" /> Profile
               </Link>
+              {user.isAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Shield className="h-3.5 w-3.5" /> Admin
+                </Link>
+              )}
               <button
                 onClick={() => signOut({ callbackUrl: "/" })}
                 className="flex items-center gap-2 w-full px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-destructive transition-colors"

@@ -34,6 +34,7 @@ type ProfileProps = {
   }[];
   heatmapData: HeatmapData;
   totalSolved: number;
+  profileVisits: number;
   todayIso: string;
   supportEmail: string;
   isOwner: boolean;
@@ -58,6 +59,7 @@ export function ProfileClient({
   profiles,
   heatmapData,
   totalSolved,
+  profileVisits,
   todayIso,
   supportEmail,
   isOwner,
@@ -138,7 +140,7 @@ export function ProfileClient({
         </div>
       </motion.div>
 
-      <div className="grid gap-3 sm:grid-cols-3 mb-6">
+      <div className="grid gap-3 sm:grid-cols-4 mb-6">
         <div className="rounded-lg border border-border/60 p-4">
           <p className="text-[11px] text-muted-foreground font-medium">Total Solved</p>
           <p className="text-2xl font-bold font-mono text-primary mt-1">{totalSolved}</p>
@@ -148,6 +150,10 @@ export function ProfileClient({
           <p className="text-2xl font-bold font-mono mt-1">
             {leetcodeRating > 0 ? <span style={{ color: getCodeforcesRankColor(leetcodeRating) }}>{leetcodeRating}</span> : "—"}
           </p>
+        </div>
+        <div className="rounded-lg border border-border/60 p-4">
+          <p className="text-[11px] text-muted-foreground font-medium">Profile Visits</p>
+          <p className="text-2xl font-bold font-mono mt-1">{profileVisits}</p>
         </div>
         <div className="rounded-lg border border-border/60 p-4">
           <p className="text-[11px] text-muted-foreground font-medium">Platforms</p>

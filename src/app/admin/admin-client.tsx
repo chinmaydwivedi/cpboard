@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Users, CheckCircle2, XCircle, Plus } from "lucide-react";
+import { Users, CheckCircle2, XCircle, Plus, Globe2, Activity, Eye } from "lucide-react";
 
 type University = {
   id: string;
@@ -29,10 +29,26 @@ export function AdminClient({
   universities: initialUniversities,
   totalUsers,
   syncStats,
+  analytics,
 }: {
   universities: University[];
   totalUsers: number;
   syncStats: { success: number; failed: number };
+  analytics: {
+    siteVisits: number;
+    siteVisits24h: number;
+    uniqueVisitors30d: number;
+    totalProfileVisits: number;
+    topPages: { path: string; visits: number }[];
+    topVisitors: {
+      userId: string;
+      username: string;
+      name: string | null;
+      visits: number;
+      mostVisitedPath: string;
+      mostVisitedCount: number;
+    }[];
+  };
 }) {
   const [universities, setUniversities] = useState(initialUniversities);
   const [newUni, setNewUni] = useState({ name: "", shortName: "", emailDomain: "" });
@@ -71,16 +87,44 @@ export function AdminClient({
     <div className="mx-auto max-w-5xl px-5 py-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Admin</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Manage universities and monitor syncs</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Manage universities and monitor analytics</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3 mb-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         <div className="rounded-lg border border-border/60 p-4">
           <div className="flex items-center gap-2 mb-2">
             <Users className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-[11px] font-medium text-muted-foreground">Total Users</span>
           </div>
           <p className="text-2xl font-bold font-mono">{totalUsers}</p>
+        </div>
+        <div className="rounded-lg border border-border/60 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Globe2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[11px] font-medium text-muted-foreground">Site Visits</span>
+          </div>
+          <p className="text-2xl font-bold font-mono">{analytics.siteVisits}</p>
+        </div>
+        <div className="rounded-lg border border-border/60 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[11px] font-medium text-muted-foreground">Visits (24h)</span>
+          </div>
+          <p className="text-2xl font-bold font-mono">{analytics.siteVisits24h}</p>
+        </div>
+        <div className="rounded-lg border border-border/60 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[11px] font-medium text-muted-foreground">Unique Visitors (30d)</span>
+          </div>
+          <p className="text-2xl font-bold font-mono">{analytics.uniqueVisitors30d}</p>
+        </div>
+        <div className="rounded-lg border border-border/60 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[11px] font-medium text-muted-foreground">Profile Visits</span>
+          </div>
+          <p className="text-2xl font-bold font-mono">{analytics.totalProfileVisits}</p>
         </div>
         <div className="rounded-lg border border-border/60 p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -92,9 +136,74 @@ export function AdminClient({
         <div className="rounded-lg border border-border/60 p-4">
           <div className="flex items-center gap-2 mb-2">
             <XCircle className="h-3.5 w-3.5 text-red-400" />
-            <span className="text-[11px] font-medium text-muted-foreground">Failed (24h)</span>
+            <span className="text-[11px] font-medium text-muted-foreground">Failed Syncs (24h)</span>
           </div>
           <p className="text-2xl font-bold font-mono text-red-400">{syncStats.failed}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2 mb-6">
+        <div className="rounded-lg border border-border/60 overflow-hidden">
+          <div className="px-5 py-3 border-b border-border/60">
+            <p className="text-sm font-medium">Most Visited Pages (30d)</p>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-border/40">
+                <TableHead className="text-[11px]">Page</TableHead>
+                <TableHead className="text-right text-[11px]">Visits</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {analytics.topPages.map((page) => (
+                <TableRow key={page.path} className="hover:bg-secondary/20 border-border/40">
+                  <TableCell className="font-mono text-[12px]">{page.path}</TableCell>
+                  <TableCell className="text-right font-mono text-[13px]">{page.visits}</TableCell>
+                </TableRow>
+              ))}
+              {analytics.topPages.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={2} className="text-center text-muted-foreground py-8 text-sm">
+                    No analytics data yet
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        <div className="rounded-lg border border-border/60 overflow-hidden">
+          <div className="px-5 py-3 border-b border-border/60">
+            <p className="text-sm font-medium">Who Visits Which Page Most (30d)</p>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-border/40">
+                <TableHead className="text-[11px]">User</TableHead>
+                <TableHead className="text-[11px]">Top Page</TableHead>
+                <TableHead className="text-right text-[11px]">Visits</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {analytics.topVisitors.map((visitor) => (
+                <TableRow key={visitor.userId} className="hover:bg-secondary/20 border-border/40">
+                  <TableCell className="text-[13px]">
+                    <p className="font-medium leading-tight">{visitor.name || visitor.username}</p>
+                    <p className="text-[11px] text-muted-foreground">@{visitor.username}</p>
+                  </TableCell>
+                  <TableCell className="font-mono text-[12px]">{visitor.mostVisitedPath}</TableCell>
+                  <TableCell className="text-right font-mono text-[13px]">{visitor.visits}</TableCell>
+                </TableRow>
+              ))}
+              {analytics.topVisitors.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-muted-foreground py-8 text-sm">
+                    No logged-in visitor data yet
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
       </div>
 

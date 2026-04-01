@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfileClient } from "./profile-client";
@@ -15,6 +15,8 @@ export default async function ProfilePage({
   const todayUtc = new Date(`${todayIso}T00:00:00.000Z`);
   const oneYearAgo = new Date(todayUtc.getTime() - 365 * 24 * 60 * 60 * 1000);
 
+  const { username } = await params;
+
   let viewerEmail: string | null = null;
   try {
     const session = await auth();
@@ -23,7 +25,18 @@ export default async function ProfilePage({
     viewerEmail = null;
   }
 
-  const { username } = await params;
+  if (!viewerEmail) {
+    redirect("/login");
+  }
+
+  const viewer = await prisma.user.findUnique({
+    where: { email: viewerEmail },
+    select: { id: true, email: true },
+  });
+
+  if (!viewer) {
+    redirect("/login");
+  }
 
   const user = await prisma.user.findUnique({
     where: { username },
@@ -42,6 +55,20 @@ export default async function ProfilePage({
   });
 
   if (!user) notFound();
+  let profileViews = user.profileViews;
+
+  if (viewer.id !== user.id) {
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        profileViews: {
+          increment: 1,
+        },
+      },
+      select: { profileViews: true },
+    });
+    profileViews = updated.profileViews;
+  }
 
   const heatmapData: HeatmapData = {};
   for (const activity of user.dailyActivities) {
@@ -81,9 +108,10 @@ export default async function ProfilePage({
       }))}
       heatmapData={heatmapData}
       totalSolved={totalSolved}
+      profileVisits={profileViews}
       todayIso={todayIso}
       supportEmail="chinmaydhardwivedi@gmail.com"
-      isOwner={viewerEmail === user.email}
+      isOwner={viewer.id === user.id}
     />
   );
 }

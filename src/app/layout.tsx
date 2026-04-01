@@ -6,6 +6,8 @@ import { Navbar } from "@/components/navbar";
 import { unstable_noStore as noStore } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isAllowlistedAdminEmail } from "@/lib/admin";
+import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { Toaster } from "@/components/ui/sonner";
 import { WalkthroughHost } from "@/components/walkthrough/walkthrough-host";
 import "./globals.css";
@@ -37,7 +39,15 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let navUser: { name?: string | null; username?: string } | null = null;
+  let navUser:
+    | {
+        id: string;
+        email: string;
+        name?: string | null;
+        username?: string;
+        isAdmin: boolean;
+      }
+    | null = null;
 
   try {
     const session = await auth();
@@ -45,9 +55,18 @@ export default async function RootLayout({
       noStore();
       const dbUser = await prisma.user.findUnique({
         where: { email: session.user.email },
-        select: { name: true, username: true },
+        select: { id: true, email: true, name: true, username: true, role: true },
       });
-      navUser = dbUser;
+      if (dbUser) {
+        navUser = {
+          id: dbUser.id,
+          email: dbUser.email,
+          name: dbUser.name,
+          username: dbUser.username,
+          isAdmin:
+            dbUser.role === "ADMIN" || isAllowlistedAdminEmail(dbUser.email),
+        };
+      }
     }
   } catch {
     // auth not configured yet
@@ -63,6 +82,17 @@ export default async function RootLayout({
         <ThemeProvider>
           <TooltipProvider>
             <Navbar user={navUser} />
+            <AnalyticsTracker
+              user={
+                navUser
+                  ? {
+                      id: navUser.id,
+                      email: navUser.email,
+                      name: navUser.name ?? null,
+                    }
+                  : null
+              }
+            />
             <WalkthroughHost />
             <main className="flex-1">{children}</main>
             <footer className="border-t border-border/40 py-6 mt-12">

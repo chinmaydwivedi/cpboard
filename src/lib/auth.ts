@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { prisma } from "./prisma";
+import { isAllowlistedAdminEmail } from "./admin";
 
 const baseAdapter = PrismaAdapter(prisma);
 
@@ -27,19 +28,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     ...baseAdapter,
     async createUser(data: any) {
       const email = data.email as string;
-      const domain = email.split("@")[1];
-
-      const university = await findUniversityByDomain(domain);
-
-      if (!university) {
-        throw new Error("University not registered");
-      }
-
       const existing = await prisma.user.findUnique({
         where: { email },
       });
 
       if (existing) return existing;
+
+      const domain = email.split("@")[1];
+      let university = await findUniversityByDomain(domain);
+
+      if (!university && isAllowlistedAdminEmail(email)) {
+        university = await prisma.university.findFirst({
+          orderBy: { createdAt: "asc" },
+        });
+      }
+
+      if (!university) {
+        throw new Error("University not registered");
+      }
 
       const username = email
         .split("@")[0]
@@ -119,6 +125,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async signIn({ user }) {
       if (!user.email) return false;
+      if (isAllowlistedAdminEmail(user.email)) return true;
 
       const domain = user.email.split("@")[1];
       if (!domain) return false;

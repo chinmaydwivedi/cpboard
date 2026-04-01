@@ -45,6 +45,7 @@ model User {
   username           String    @unique
   avatarUrl          String?
   role               Role      @default(STUDENT)
+  profileViews       Int       @default(0)
   universityId       String
   emailVerified      DateTime?
   onboardingComplete Boolean   @default(false)
@@ -57,6 +58,7 @@ model User {
   syncLogs         SyncLog[]
   accounts         Account[]
   sessions         Session[]
+  pageVisits       PageVisit[]
 
   @@index([universityId])
   @@index([username])
@@ -147,4 +149,19 @@ model SyncLog {
 
   @@index([userId])
   @@index([syncedAt])
+}
+
+model PageVisit {
+  id           String   @id @default(cuid())
+  path         String
+  visitorId    String
+  viewerUserId String?
+  createdAt    DateTime @default(now())
+
+  viewerUser User? @relation(fields: [viewerUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([path, createdAt])
+  @@index([viewerUserId, createdAt])
+  @@index([visitorId, path, createdAt])
 }
