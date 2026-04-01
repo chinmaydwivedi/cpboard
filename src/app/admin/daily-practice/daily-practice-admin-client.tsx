@@ -133,6 +133,7 @@ export function DailyPracticeAdminClient({
   const [saving, setSaving] = useState(false);
   const [busyPublishId, setBusyPublishId] = useState<string | null>(null);
   const [busyDeleteId, setBusyDeleteId] = useState<string | null>(null);
+  const [busyMarkAllSolvedId, setBusyMarkAllSolvedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() => createEmptyForm(todayKey));
 
   const setSolutionField = (
@@ -269,6 +270,47 @@ export function DailyPracticeAdminClient({
       toast.error("Failed to delete problem");
     } finally {
       setBusyDeleteId(null);
+    }
+  };
+
+  const handleMarkSolvedForAll = async (problem: DailyPracticeProblemItem) => {
+    if (busyMarkAllSolvedId) return;
+    if (!problem.isPublished) {
+      toast.error("Publish this POTD before marking it solved for everyone.");
+      return;
+    }
+
+    const confirmed = confirm(
+      `Mark "${problem.title}" (${problem.dateKey}) as solved for all users? Existing solves will be kept.`
+    );
+    if (!confirmed) return;
+
+    setBusyMarkAllSolvedId(problem.id);
+    try {
+      const res = await fetch(
+        `/api/admin/daily-practice/${problem.id}/mark-all-solved`,
+        {
+          method: "POST",
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to mark solved for everyone");
+        return;
+      }
+
+      const created = Number(data.created ?? 0);
+      const skipped = Number(data.skipped ?? 0);
+      toast.success(
+        skipped > 0
+          ? `Marked solved for all users (${created} added, ${skipped} already solved).`
+          : `Marked solved for all users (${created} added).`
+      );
+      router.refresh();
+    } catch {
+      toast.error("Failed to mark solved for everyone");
+    } finally {
+      setBusyMarkAllSolvedId(null);
     }
   };
 
@@ -542,6 +584,19 @@ export function DailyPracticeAdminClient({
                         : problem.isPublished
                           ? "Unpublish"
                           : "Publish"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        void handleMarkSolvedForAll(problem);
+                      }}
+                      disabled={Boolean(busyMarkAllSolvedId) || !problem.isPublished}
+                    >
+                      {busyMarkAllSolvedId === problem.id
+                        ? "Applying..."
+                        : "Mark Solved For All"}
                     </Button>
                     <Button
                       type="button"
