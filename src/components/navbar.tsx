@@ -106,7 +106,7 @@ export function Navbar({
           <span className="font-semibold text-[15px] tracking-tight">CP Board</span>
         </Link>
 
-        <div className="hidden md:flex items-center gap-0.5">
+        <div className="hidden md:flex items-center gap-0.5 absolute left-1/2 -translate-x-1/2">
           {links.map((link) => {
             const Icon = link.icon;
             const active = pathname === link.href || pathname.startsWith(link.href + "/");
