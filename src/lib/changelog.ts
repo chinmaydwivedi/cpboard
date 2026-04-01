@@ -16,11 +16,11 @@ export type ChangelogRelease = {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
-    id: "2026-04-01-admin-analytics",
+    id: "2026-04-01-privacy-profile-updates",
     publishedOn: "2026-04-01",
     headline: "New Updates to CPBoard",
     summary:
-      "We shipped better privacy controls and stronger analytics with minimal UI changes.",
+      "We shipped better privacy controls and profile updates with minimal UI changes.",
     highlights: [
       {
         id: "profile-privacy",
@@ -29,14 +29,6 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         title: "Private Profile Details",
         description:
           "Users must be signed in to open full profile details for other members.",
-      },
-      {
-        id: "admin-analytics",
-        label: "NEW",
-        emoji: "📊",
-        title: "Expanded Admin Analytics",
-        description:
-          "Track site visits, top pages, unique visitors, and logged-in visitor behavior.",
       },
       {
         id: "profile-visit-counter",
