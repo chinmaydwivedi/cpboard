@@ -48,10 +48,22 @@ function computeStats(data: HeatmapData, year: number, currentYear: number, toda
     else streak = 0;
   }
 
+  // Grace period: if today has no activity, the day isn't over yet —
+  // start counting from yesterday so the streak stays alive.
   let cs = 0;
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    if (sorted[i]) cs++;
-    else break;
+  const todayActive = sorted.length > 0 && sorted[sorted.length - 1];
+  if (todayActive) {
+    // Today is active: count backward from today
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if (sorted[i]) cs++;
+      else break;
+    }
+  } else {
+    // Today not active yet — grace: count backward from yesterday
+    for (let i = sorted.length - 2; i >= 0; i--) {
+      if (sorted[i]) cs++;
+      else break;
+    }
   }
   currentStreak = cs;
 
