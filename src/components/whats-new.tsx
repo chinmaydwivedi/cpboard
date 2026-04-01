@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Sparkles, BookText } from "lucide-react";
+import { Sparkles, BookText, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -99,17 +99,29 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
       }}
     >
       <DialogContent
+        showCloseButton={false}
         className="max-w-[calc(100%-2rem)] sm:max-w-xl border border-border/70 bg-card/95 backdrop-blur-xl p-0 overflow-hidden"
         data-tour="whats-new-modal"
       >
         <div className="bg-linear-to-br from-primary/15 via-card to-card p-5 sm:p-6">
-          <DialogHeader className="gap-3">
+          <div className="mb-3 flex items-start justify-between gap-2">
             <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span className="text-[11px] font-medium tracking-wide text-primary uppercase">
                 What&apos;s New
               </span>
             </div>
+            <button
+              type="button"
+              onClick={maybeLater}
+              aria-label="Close what's new"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <DialogHeader className="gap-3">
             <DialogTitle className="text-2xl sm:text-3xl leading-tight">
               {CURRENT_CHANGELOG.headline}
             </DialogTitle>
@@ -168,7 +180,7 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
           </div>
         </div>
 
-        <DialogFooter className="bg-card/95 p-4 sm:p-5 border-t border-border/50">
+        <DialogFooter className="mx-0 mb-0 border-t border-border/50 bg-card/95 p-5 sm:p-6">
           <Button
             type="button"
             variant="ghost"
