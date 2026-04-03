@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { hasAdminAccess } from "@/lib/admin";
+import { hasPotdAdminAccess } from "@/lib/admin";
 import { dateToDateKey, getIstDateKey } from "@/lib/potd";
 import { DailyPracticeAdminClient } from "./daily-practice-admin-client";
 
@@ -15,7 +15,7 @@ export default async function AdminDailyPracticePage() {
 
   if (!session?.user?.email) redirect("/login");
 
-  const canAccessAdmin = await hasAdminAccess(session.user.email);
+  const canAccessAdmin = await hasPotdAdminAccess(session.user.email);
   if (!canAccessAdmin) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-24 text-center">

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
-import { hasAdminAccess } from "@/lib/admin";
+import { hasPotdAdminAccess } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -13,7 +13,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const canAccessAdmin = await hasAdminAccess(session.user.email);
+  const canAccessAdmin = await hasPotdAdminAccess(session.user.email);
   if (!canAccessAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

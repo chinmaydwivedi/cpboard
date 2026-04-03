@@ -14,6 +14,12 @@ export function isAllowlistedAdminEmail(email: string | null | undefined): boole
   return allowlist.includes(email.toLowerCase());
 }
 
+export function isPotdAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const allowlist = parseAdminEmailAllowlist(process.env.POTD_ADMIN_ALLOWLIST_EMAILS);
+  return allowlist.includes(email.toLowerCase());
+}
+
 export async function hasAdminAccess(email: string | null | undefined): Promise<boolean> {
   if (!email) return false;
   if (isAllowlistedAdminEmail(email)) return true;
@@ -24,4 +30,10 @@ export async function hasAdminAccess(email: string | null | undefined): Promise<
   });
 
   return user?.role === "ADMIN";
+}
+
+export async function hasPotdAdminAccess(email: string | null | undefined): Promise<boolean> {
+  if (!email) return false;
+  if (await hasAdminAccess(email)) return true;
+  return isPotdAdminEmail(email);
 }

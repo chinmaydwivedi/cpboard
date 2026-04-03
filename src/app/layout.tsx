@@ -6,7 +6,7 @@ import { Navbar } from "@/components/navbar";
 import { unstable_noStore as noStore } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAllowlistedAdminEmail } from "@/lib/admin";
+import { isAllowlistedAdminEmail, isPotdAdminEmail } from "@/lib/admin";
 import { getActiveReleaseId } from "@/lib/changelog";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { WhatsNewModal } from "@/components/whats-new";
@@ -49,6 +49,7 @@ export default async function RootLayout({
         name?: string | null;
         username?: string;
         isAdmin: boolean;
+        isPotdAdmin: boolean;
       }
     | null = null;
 
@@ -61,13 +62,15 @@ export default async function RootLayout({
         select: { id: true, email: true, name: true, username: true, role: true },
       });
       if (dbUser) {
+        const isAdmin =
+          dbUser.role === "ADMIN" || isAllowlistedAdminEmail(dbUser.email);
         navUser = {
           id: dbUser.id,
           email: dbUser.email,
           name: dbUser.name,
           username: dbUser.username,
-          isAdmin:
-            dbUser.role === "ADMIN" || isAllowlistedAdminEmail(dbUser.email),
+          isAdmin,
+          isPotdAdmin: !isAdmin && isPotdAdminEmail(dbUser.email),
         };
       }
     }
