@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { hasPotdAdminAccess } from "@/lib/admin";
+import { hasPotdAdminAccess, hasAdminAccess } from "@/lib/admin";
 import { dateToDateKey, getIstDateKey } from "@/lib/potd";
 import { DailyPracticeAdminClient } from "./daily-practice-admin-client";
 
@@ -40,9 +40,12 @@ export default async function AdminDailyPracticePage() {
     },
   });
 
+  const isFullAdmin = await hasAdminAccess(session.user.email);
+
   return (
     <DailyPracticeAdminClient
       todayKey={getIstDateKey()}
+      isFullAdmin={isFullAdmin}
       problems={problems.map((problem) => ({
         id: problem.id,
         dateKey: dateToDateKey(problem.date),

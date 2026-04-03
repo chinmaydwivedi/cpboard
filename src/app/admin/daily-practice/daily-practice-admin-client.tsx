@@ -123,9 +123,11 @@ function hasAllLanguageSolutions(problem: DailyPracticeProblemItem): boolean {
 
 export function DailyPracticeAdminClient({
   todayKey,
+  isFullAdmin,
   problems,
 }: {
   todayKey: string;
+  isFullAdmin: boolean;
   problems: DailyPracticeProblemItem[];
 }) {
   const router = useRouter();
@@ -326,10 +328,10 @@ export function DailyPracticeAdminClient({
     <div className="mx-auto max-w-5xl px-5 py-8">
       <div className="mb-6" data-tour="admin-potd-header">
         <Link
-          href="/admin"
+          href={isFullAdmin ? "/admin" : "/dashboard"}
           className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
         >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
+          <ArrowLeft className="h-3.5 w-3.5" /> {isFullAdmin ? "Back to Admin" : "Back to Dashboard"}
         </Link>
         <h1 className="text-2xl font-bold tracking-tight mt-2">Daily Practice Admin</h1>
         <p className="text-sm text-muted-foreground mt-1">
