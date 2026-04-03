@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import type { ProblemPlatform, SolutionLanguage } from "@prisma/client";
-import { ArrowLeft, CalendarDays, CheckCircle2, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -135,6 +136,13 @@ export function DailyPracticeAdminClient({
   const [busyDeleteId, setBusyDeleteId] = useState<string | null>(null);
   const [busyMarkAllSolvedId, setBusyMarkAllSolvedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() => createEmptyForm(todayKey));
+  const [potdPage, setPotdPage] = useState(0);
+  const POTD_PAGE_SIZE = 10;
+  const totalPotdPages = Math.max(1, Math.ceil(problems.length / POTD_PAGE_SIZE));
+  const paginatedProblems = useMemo(
+    () => problems.slice(potdPage * POTD_PAGE_SIZE, (potdPage + 1) * POTD_PAGE_SIZE),
+    [problems, potdPage]
+  );
 
   const setSolutionField = (
     language: SolutionLanguage,
@@ -522,12 +530,17 @@ export function DailyPracticeAdminClient({
       </section>
 
       <section className="rounded-lg border border-border/60 overflow-hidden" data-tour="admin-potd-list">
-        <div className="px-5 py-3 border-b border-border/60">
+        <div className="px-5 py-3 border-b border-border/60 flex items-center justify-between">
           <p className="text-sm font-medium">Recent POTD Entries</p>
+          <span className="text-[11px] text-muted-foreground">
+            {problems.length > 0
+              ? `${potdPage * POTD_PAGE_SIZE + 1}–${Math.min((potdPage + 1) * POTD_PAGE_SIZE, problems.length)} of ${problems.length}`
+              : "0 entries"}
+          </span>
         </div>
 
         <div className="divide-y divide-border/40">
-          {problems.map((problem) => {
+          {paginatedProblems.map((problem) => {
             const complete = hasAllLanguageSolutions(problem);
             return (
               <div key={problem.id} className="p-4 sm:p-5">
@@ -620,6 +633,43 @@ export function DailyPracticeAdminClient({
             </div>
           )}
         </div>
+
+        {totalPotdPages > 1 && (
+          <div className="flex items-center justify-center gap-1.5 px-5 py-3 border-t border-border/60">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={potdPage === 0}
+              onClick={() => setPotdPage((p) => Math.max(0, p - 1))}
+              className="h-7 w-7 p-0"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {Array.from({ length: totalPotdPages }, (_, i) => (
+              <Button
+                key={i}
+                type="button"
+                size="sm"
+                variant={i === potdPage ? "default" : "ghost"}
+                onClick={() => setPotdPage(i)}
+                className="h-7 min-w-[1.75rem] px-1.5 text-[12px] font-mono"
+              >
+                {i + 1}
+              </Button>
+            ))}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={potdPage === totalPotdPages - 1}
+              onClick={() => setPotdPage((p) => Math.min(totalPotdPages - 1, p + 1))}
+              className="h-7 w-7 p-0"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </section>
     </div>
   );

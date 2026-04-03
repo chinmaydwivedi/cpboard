@@ -87,7 +87,7 @@ export function computePotdStreak(
   todayKey = getIstDateKey()
 ): PotdStreakSummary {
   const unique = [
-    ...new Set([...solvedDateKeys.filter(isDateKey), POTD_GRACE_SOLVE_DATE_KEY]),
+    ...new Set(solvedDateKeys.filter(isDateKey)),
   ].sort();
   if (unique.length === 0) {
     return {
