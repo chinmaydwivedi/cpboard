@@ -33,7 +33,7 @@ async function getLeaderboard(): Promise<LeaderboardEntry[]> {
       bestRating: computeBestRating(user.platformProfiles),
       longestPotdStreak: computePotdStreak(
         user.potdSolves.map((solve) => dateToDateKey(solve.solvedDate))
-      ).longest,
+      ).current,
       platforms: user.platformProfiles.map((p) => ({
         platform: p.platform,
         handle: p.handle,

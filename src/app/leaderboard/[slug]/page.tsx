@@ -50,7 +50,7 @@ export default async function UniversityLeaderboardPage({
       bestRating: computeBestRating(user.platformProfiles),
       longestPotdStreak: computePotdStreak(
         user.potdSolves.map((solve) => dateToDateKey(solve.solvedDate))
-      ).longest,
+      ).current,
       platforms: user.platformProfiles.map((p) => ({
         platform: p.platform,
         handle: p.handle,

@@ -120,16 +120,22 @@ export function computePotdStreak(
   let current = 0;
 
   if (todayDay !== null) {
-    for (let day = todayDay; solvedSet.has(day); day -= 1) {
+    // If today is solved, count backward from today
+    // If today is NOT solved, count backward from yesterday (grace: the day isn't over yet)
+    // At midnight IST, "today" advances, so yesterday's missing solve breaks the streak
+    const startDay = solvedSet.has(todayDay) ? todayDay : todayDay - 1;
+    for (let day = startDay; solvedSet.has(day); day -= 1) {
       current += 1;
     }
   }
+
+  const solvedToday = todayDay !== null && solvedSet.has(todayDay);
 
   return {
     current,
     longest,
     totalSolvedDays: unique.length,
-    solvedToday: current > 0,
+    solvedToday,
     lastSolvedDate: unique[unique.length - 1] ?? null,
   };
 }
