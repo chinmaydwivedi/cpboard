@@ -18,6 +18,75 @@ export type ChangelogRelease = {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    id: "2026-07-17-contests-and-personalization",
+    publishedOn: "2026-07-17",
+    headline: "Contests, Smarter Practice, and Weekly Recognition",
+    summary:
+      "CPBoard now helps you plan upcoming rounds, choose what to practice next, and celebrate the most active solver each week.",
+    highlights: [
+      {
+        id: "contest-calendar",
+        label: "NEW",
+        pageHref: "/contests",
+        pageLabel: "Contests",
+        iconSrc: "/favicon.ico",
+        title: "Cross-Platform Contest Calendar",
+        description:
+          "Browse upcoming Codeforces, LeetCode, AtCoder, and CodeChef contests in local time, filter platforms, and add rounds to Google Calendar.",
+      },
+      {
+        id: "topic-recommendations",
+        label: "NEW",
+        pageHref: "/dashboard",
+        pageLabel: "Dashboard",
+        iconSrc: "/favicon.ico",
+        title: "Personalized Topic Practice",
+        description:
+          "Your least-practiced radar topics now produce rating-matched Codeforces and LeetCode practice recommendations.",
+      },
+      {
+        id: "weekly-standout",
+        label: "NEW",
+        pageHref: "/leaderboard",
+        pageLabel: "Leaderboard",
+        iconSrc: "/favicon.ico",
+        title: "Weekly Standout",
+        description:
+          "The most active solver gets a weekly spotlight with activity combined across every synced platform and refreshed twice daily.",
+      },
+      {
+        id: "cp-rankings-pagination",
+        label: "IMPROVED",
+        pageHref: "/cp-rankings",
+        pageLabel: "CP Rankings",
+        iconSrc: "/favicon.ico",
+        title: "Paginated CP Rankings",
+        description:
+          "Codeforces rankings now load ten users per page while preserving global ranks, full-board statistics, and stable ordering.",
+      },
+      {
+        id: "snippex-reference",
+        label: "NEW",
+        pageHref: "/contests",
+        pageLabel: "Contests",
+        iconSrc: "/favicon.ico",
+        title: "CP Snippet Reference",
+        description:
+          "A new Snippex shortcut puts copy-ready C++ templates and competitive programming references beside the contest schedule.",
+      },
+      {
+        id: "potd-paused",
+        label: "IMPROVED",
+        pageHref: "/contests",
+        pageLabel: "Navigation",
+        iconSrc: "/favicon.ico",
+        title: "Contest-Focused Navigation",
+        description:
+          "POTD is paused for now, and its public navigation and routes have been replaced by the contest calendar.",
+      },
+    ],
+  },
+  {
     id: "2026-04-01-potd-launch",
     publishedOn: "2026-04-01",
     headline: "POTD, Streaks, and Daily Discussion",

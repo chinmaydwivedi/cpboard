@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -88,15 +87,7 @@ export function AdminClient({
     <div className="mx-auto max-w-5xl px-5 py-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Admin</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Manage universities, monitor analytics, and configure POTD</p>
-        <div className="mt-3">
-          <Link
-            href="/admin/daily-practice"
-            className="inline-flex h-7 items-center rounded-[min(var(--radius-md),12px)] border border-border bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted transition-colors"
-          >
-            Manage Daily Practice
-          </Link>
-        </div>
+        <p className="text-sm text-muted-foreground mt-0.5">Manage universities and monitor site analytics</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-6">

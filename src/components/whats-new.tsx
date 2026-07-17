@@ -100,10 +100,10 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
     >
       <DialogContent
         showCloseButton={false}
-        className="max-w-[calc(100%-2rem)] sm:max-w-xl border border-border/70 bg-card/95 backdrop-blur-xl p-0 overflow-hidden"
+        className="max-h-[90vh] max-w-[calc(100%-2rem)] sm:max-w-xl border border-border/70 bg-card/95 backdrop-blur-xl p-0 overflow-hidden"
         data-tour="whats-new-modal"
       >
-        <div className="bg-linear-to-br from-primary/15 via-card to-card p-5 sm:p-6">
+        <div className="overflow-y-auto bg-linear-to-br from-primary/15 via-card to-card p-5 sm:p-6">
           <div className="mb-3 flex items-start justify-between gap-2">
             <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1">
               <Sparkles className="h-3.5 w-3.5 text-primary" />

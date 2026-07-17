@@ -6,7 +6,6 @@ export type TourId =
   | "universityBoard"
   | "cpRankings"
   | "contests"
-  | "potd"
   | "dashboard"
   | "publicProfile"
   | "changelog"
@@ -178,72 +177,6 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       popover: {
         title: "Upcoming contests",
         description: "Check start times and durations, open the contest, or add it to Google Calendar.",
-        side: "top",
-      },
-    },
-  ],
-  potd: [
-    navStep,
-    {
-      element: SEL("potd-header"),
-      popover: {
-        title: "Daily practice",
-        description:
-          "Problem of the Day (POTD) gives one focused problem each day with admin-written solutions.",
-        side: "bottom",
-      },
-    },
-    {
-      element: SEL("potd-calendar"),
-      popover: {
-        title: "Completion calendar",
-        description:
-          "This monthly calendar adds a tick mark for completed POTDs. Click published past dates (including yesterday) to open and solve them.",
-        side: "bottom",
-      },
-    },
-    {
-      element: SEL("potd-streak"),
-      popover: {
-        title: "Streak tracking",
-        description:
-          "Sign in and mark the POTD as solved to build your personal daily streak.",
-        side: "bottom",
-      },
-    },
-    {
-      element: SEL("potd-problem"),
-      popover: {
-        title: "Problem card",
-        description:
-          "Open the official problem link and mark it solved after finishing.",
-        side: "top",
-      },
-    },
-    {
-      element: SEL("potd-solutions"),
-      popover: {
-        title: "Language tabs",
-        description:
-          "Review Java, C++, and Python reference solutions and explanations.",
-        side: "top",
-      },
-    },
-    {
-      element: SEL("potd-comments"),
-      popover: {
-        title: "Discussion",
-        description:
-          "Ask questions, compare approaches, share themed fenced code blocks, and delete your own comments when needed.",
-        side: "top",
-      },
-    },
-    {
-      element: SEL("potd-archive"),
-      popover: {
-        title: "Archive",
-        description:
-          "Jump to earlier POTD entries to practice older problems and discussions.",
         side: "top",
       },
     },
@@ -422,7 +355,6 @@ export function tourIdForPathname(pathname: string): TourId | null {
   if (/^\/leaderboard\/[^/]+$/.test(pathname)) return "universityBoard";
   if (pathname === "/cp-rankings") return "cpRankings";
   if (pathname === "/contests") return "contests";
-  if (pathname === "/potd" || pathname === "/daily-practice") return "potd";
   if (pathname === "/dashboard") return "dashboard";
   if (pathname === "/admin/daily-practice") return "adminDailyPractice";
   if (/^\/u\/[^/]+$/.test(pathname)) return "publicProfile";

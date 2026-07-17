@@ -205,15 +205,6 @@ export function Navbar({
                       <Shield className="h-3.5 w-3.5" /> Admin
                     </Link>
                   )}
-                  {!user.isAdmin && user.isPotdAdmin && (
-                    <Link
-                      href="/admin/daily-practice"
-                      onClick={() => setDropdownOpen(false)}
-                      className="flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-                    >
-                      <Shield className="h-3.5 w-3.5" /> POTD Admin
-                    </Link>
-                  )}
                   <div className="border-t border-border/40 my-1" />
                   <button
                     onClick={() => signOut({ callbackUrl: "/" })}
@@ -304,15 +295,6 @@ export function Navbar({
                   className="flex items-center gap-2 px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Shield className="h-3.5 w-3.5" /> Admin
-                </Link>
-              )}
-              {!user.isAdmin && user.isPotdAdmin && (
-                <Link
-                  href="/admin/daily-practice"
-                  onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-2 px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <Shield className="h-3.5 w-3.5" /> POTD Admin
                 </Link>
               )}
               <button

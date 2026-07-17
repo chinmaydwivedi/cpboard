@@ -8,9 +8,12 @@ A multi-university competitive programming leaderboard that aggregates profiles 
 - **University leaderboards** — Per-university and global rankings by problems solved and ratings
 - **Cross-platform heatmap** — GitHub-style contribution grid aggregating activity across all platforms
 - **CP Rankings** — Dedicated section for Codeforces ratings with rank distribution charts
+- **Contest calendar** — Upcoming Codeforces, LeetCode, AtCoder, and CodeChef rounds with local times and calendar export
+- **Personalized practice** — Topic-wise Codeforces and LeetCode recommendations based on profile activity
+- **Weekly standout** — Cross-platform recognition for the most active solver each week
 - **University email verification** — Students sign in with magic links to their `.edu` email
 - **Multi-university support** — Admin-configurable email domains for any university
-- **Auto-sync** — Cron job refreshes platform data every 6 hours
+- **Auto-sync** — Cron jobs refresh verified platform profiles twice daily
 
 ## Tech Stack
 
@@ -98,6 +101,7 @@ src/
 │   ├── dashboard/                  # Personal dashboard + profile linking
 │   ├── leaderboard/                # Global & per-university leaderboards
 │   ├── cp-rankings/                # Codeforces ratings section
+│   ├── contests/                   # Cross-platform contest calendar
 │   ├── u/[username]/               # Public user profiles
 │   ├── admin/                      # University management
 │   └── api/                        # Auth, sync, cron routes
@@ -105,6 +109,7 @@ src/
 │   ├── heatmap.tsx                 # Cross-platform activity heatmap
 │   ├── leaderboard-table.tsx       # Sortable leaderboard with animations
 │   ├── rating-chart.tsx            # CF rating distribution chart
+│   ├── topic-recommendations.tsx   # Personalized topic practice suggestions
 │   └── navbar.tsx                  # Top navigation bar
 ├── lib/
 │   ├── platforms/                  # CF, LC, AC, CC API fetchers
@@ -121,7 +126,7 @@ src/
 3. Add environment variables in Vercel project settings
 4. Add a Neon PostgreSQL database (or any Postgres)
 5. Run `npx prisma migrate deploy` in the build command
-6. The cron job (`/api/cron/sync-all`) runs every 6 hours automatically via `vercel.json`
+6. The cron job (`/api/cron/sync-all`) runs twice daily automatically via `vercel.json`
 
 ## Platform APIs Used
 

@@ -23,7 +23,7 @@ const features = [
   },
   {
     title: "CP Rankings",
-    description: "Dedicated Codeforces ratings section with rank distributions and history.",
+    description: "Paginated Codeforces ratings with full-board statistics and rank distribution.",
     icon: Zap,
   },
 ];
