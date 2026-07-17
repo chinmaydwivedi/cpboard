@@ -36,6 +36,7 @@ export type WeeklyLeader = {
   name: string | null;
   universityShortName: string;
   submissionCount: number;
+  platformBreakdown: Partial<Record<Platform, number>>;
   weekLabel: string;
 };
 

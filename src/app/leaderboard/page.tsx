@@ -37,7 +37,7 @@ async function getLeaderboard(): Promise<{
         platformProfiles: true,
         dailyActivities: {
           where: { date: { gte: week.start, lt: week.end } },
-          select: { submissionCount: true },
+          select: { platform: true, submissionCount: true },
         },
       },
       where: {
@@ -83,6 +83,13 @@ async function getLeaderboard(): Promise<{
           (total, activity) => total + activity.submissionCount,
           0,
         ),
+        platformBreakdown: user.dailyActivities.reduce<
+          WeeklyLeader["platformBreakdown"]
+        >((totals, activity) => {
+          totals[activity.platform] =
+            (totals[activity.platform] ?? 0) + activity.submissionCount;
+          return totals;
+        }, {}),
         weekLabel: week.weekLabel,
       }))
       .sort(

@@ -14,6 +14,13 @@ import {
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import type { LeaderboardEntry, WeeklyLeader } from "@/types";
 
+const WEEKLY_PLATFORM_LABELS = {
+  CODEFORCES: "CF",
+  LEETCODE: "LC",
+  ATCODER: "AC",
+  CODECHEF: "CC",
+} as const;
+
 export function LeaderboardClient({
   entries,
   universities,
@@ -60,15 +67,35 @@ export function LeaderboardClient({
                     {weeklyLeader.weekLabel}
                   </span>
                 </div>
-                <p className="mt-1 truncate text-sm text-muted-foreground">
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-1 text-sm text-muted-foreground">
                   <Link
                     href={`/u/${weeklyLeader.username}`}
                     className="font-semibold text-foreground transition-colors hover:text-primary"
                   >
                     {weeklyLeader.name || weeklyLeader.username}
-                  </Link>{" "}
-                  from {weeklyLeader.universityShortName} is leading this week&apos;s practice.
-                </p>
+                  </Link>
+                  <span>from</span>
+                  <span>{weeklyLeader.universityShortName}</span>
+                  <span>is leading this week&apos;s practice.</span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {Object.entries(weeklyLeader.platformBreakdown)
+                    .filter(([, count]) => count > 0)
+                    .map(([platform, count]) => (
+                      <span
+                        key={platform}
+                        className="rounded border border-border/60 bg-background/60 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground"
+                      >
+                        {WEEKLY_PLATFORM_LABELS[
+                          platform as keyof typeof WEEKLY_PLATFORM_LABELS
+                        ] ?? platform}{" "}
+                        {count}
+                      </span>
+                    ))}
+                  <span className="text-[9px] text-muted-foreground/70">
+                    Across all synced platforms · refreshed twice daily
+                  </span>
+                </div>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-3 sm:border-l sm:border-border/50 sm:pl-4">
