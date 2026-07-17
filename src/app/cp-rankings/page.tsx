@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { CPRankingsClient } from "./cp-rankings-client";
 
 export const revalidate = 60;
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
 
 async function getCPData(requestedPage: number) {
   try {
