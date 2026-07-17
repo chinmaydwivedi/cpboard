@@ -1,20 +1,43 @@
 import { prisma } from "@/lib/prisma";
 import { computeTotalSolved, computeBestRating } from "@/lib/scoring";
-import { computePotdStreak, dateToDateKey } from "@/lib/potd";
 import { LeaderboardClient } from "./leaderboard-client";
-import type { LeaderboardEntry } from "@/types";
+import type { LeaderboardEntry, WeeklyLeader } from "@/types";
 
 export const revalidate = 60;
 
-async function getLeaderboard(): Promise<LeaderboardEntry[]> {
+function getCurrentWeek() {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  start.setUTCDate(start.getUTCDate() - daysSinceMonday);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 7);
+  const weekLabel = `${start.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })}–${new Date(end.getTime() - 1).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })}`;
+  return { start, end, weekLabel };
+}
+
+async function getLeaderboard(): Promise<{
+  entries: LeaderboardEntry[];
+  weeklyLeader: WeeklyLeader | null;
+}> {
   try {
+    const week = getCurrentWeek();
     const users = await prisma.user.findMany({
       include: {
         university: true,
         platformProfiles: true,
-        potdSolves: {
-          select: { solvedDate: true },
-          orderBy: { solvedDate: "asc" },
+        dailyActivities: {
+          where: { date: { gte: week.start, lt: week.end } },
+          select: { submissionCount: true },
         },
       },
       where: {
@@ -31,9 +54,7 @@ async function getLeaderboard(): Promise<LeaderboardEntry[]> {
       universityName: user.university.name,
       totalSolved: computeTotalSolved(user.platformProfiles),
       bestRating: computeBestRating(user.platformProfiles),
-      longestPotdStreak: computePotdStreak(
-        user.potdSolves.map((solve) => dateToDateKey(solve.solvedDate))
-      ).current,
+      longestPotdStreak: 0,
       platforms: user.platformProfiles.map((p) => ({
         platform: p.platform,
         handle: p.handle,
@@ -53,9 +74,30 @@ async function getLeaderboard(): Promise<LeaderboardEntry[]> {
     );
     entries.forEach((e, i) => (e.rank = i + 1));
 
-    return entries;
+    const weeklyWinner = [...users]
+      .map((user) => ({
+        username: user.username,
+        name: user.name,
+        universityShortName: user.university.shortName,
+        submissionCount: user.dailyActivities.reduce(
+          (total, activity) => total + activity.submissionCount,
+          0,
+        ),
+        weekLabel: week.weekLabel,
+      }))
+      .sort(
+        (a, b) =>
+          b.submissionCount - a.submissionCount ||
+          a.username.localeCompare(b.username),
+      )[0];
+
+    return {
+      entries,
+      weeklyLeader:
+        weeklyWinner && weeklyWinner.submissionCount > 0 ? weeklyWinner : null,
+    };
   } catch {
-    return [];
+    return { entries: [], weeklyLeader: null };
   }
 }
 
@@ -71,7 +113,7 @@ async function getUniversities() {
 }
 
 export default async function LeaderboardPage() {
-  const [entries, universities] = await Promise.all([
+  const [leaderboard, universities] = await Promise.all([
     getLeaderboard(),
     getUniversities(),
   ]);
@@ -85,7 +127,11 @@ export default async function LeaderboardPage() {
         </p>
       </div>
 
-      <LeaderboardClient entries={entries} universities={universities} />
+      <LeaderboardClient
+        entries={leaderboard.entries}
+        universities={universities}
+        weeklyLeader={leaderboard.weeklyLeader}
+      />
     </div>
   );
 }

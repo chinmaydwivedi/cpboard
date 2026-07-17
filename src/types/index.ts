@@ -31,6 +31,14 @@ export type LeaderboardEntry = {
   longestPotdStreak: number;
 };
 
+export type WeeklyLeader = {
+  username: string;
+  name: string | null;
+  universityShortName: string;
+  submissionCount: number;
+  weekLabel: string;
+};
+
 export type HeatmapData = Record<
   string,
   { total: number; byPlatform: Partial<Record<Platform, number>> }

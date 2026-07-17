@@ -75,6 +75,15 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       },
     },
     {
+      element: SEL("lb-weekly-spotlight"),
+      popover: {
+        title: "Weekly standout",
+        description:
+          "The most active problem solver for the current week gets a spotlight based on synced submission activity.",
+        side: "bottom",
+      },
+    },
+    {
       element: SEL("lb-filters"),
       popover: {
         title: "Search and filter",
