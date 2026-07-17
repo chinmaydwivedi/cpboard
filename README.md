@@ -7,7 +7,7 @@ A multi-university competitive programming leaderboard that aggregates profiles 
 - **Multi-platform tracking** — Link Codeforces, LeetCode, AtCoder, and CodeChef profiles
 - **University leaderboards** — Per-university and global rankings by problems solved and ratings
 - **Cross-platform heatmap** — GitHub-style contribution grid aggregating activity across all platforms
-- **CP Rankings** — Dedicated section for Codeforces ratings with rank distribution charts
+- **CP Rankings** — Live Codeforces podium, full-board statistics, rating distribution, and paginated rankings
 - **Contest calendar** — Upcoming Codeforces, LeetCode, AtCoder, and CodeChef rounds with local times and calendar export
 - **Personalized practice** — Topic-wise Codeforces and LeetCode recommendations based on profile activity
 - **Weekly standout** — Cross-platform recognition for the most active solver each week
