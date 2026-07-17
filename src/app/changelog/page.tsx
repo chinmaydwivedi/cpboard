@@ -39,7 +39,7 @@ export default function ChangelogPage() {
       </section>
 
       <section className="space-y-4" data-tour="changelog-history">
-        {CHANGELOG_RELEASES.map((release) => (
+        {CHANGELOG_RELEASES.slice(1).map((release) => (
           <article
             key={release.id}
             className="rounded-lg border border-border/60 bg-card/70 p-5"
