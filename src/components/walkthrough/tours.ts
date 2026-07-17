@@ -5,6 +5,7 @@ export type TourId =
   | "leaderboard"
   | "universityBoard"
   | "cpRankings"
+  | "contests"
   | "potd"
   | "dashboard"
   | "publicProfile"
@@ -18,7 +19,7 @@ const navStep: DriveStep = {
   popover: {
     title: "Site navigation",
     description:
-      "Open Leaderboard, CP Rankings, POTD, and Dashboard (when signed in). On the right, use Sync All, page tours, and What’s New/Changelog.",
+      "Open Leaderboard, CP Rankings, Contests, and Dashboard (when signed in). On the right, use Sync All, page tours, and What’s New/Changelog.",
     side: "bottom",
     align: "center",
   },
@@ -86,7 +87,7 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       popover: {
         title: "Rankings table",
         description:
-          "Sort by rank, totals, POTD longest streak, per-platform solved counts, or best rating. Click a user to open their public profile.",
+          "Sort by rank, totals, per-platform solved counts, or best rating. Click a user to open their public profile.",
         side: "top",
       },
     },
@@ -141,6 +142,33 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       popover: {
         title: "Ranked list",
         description: "Sorted by current Codeforces rating. Links go to public profiles and Codeforces.",
+        side: "top",
+      },
+    },
+  ],
+  contests: [
+    navStep,
+    {
+      element: SEL("contests-header"),
+      popover: {
+        title: "Contest calendar",
+        description: "See upcoming competitive programming contests in your local time zone.",
+        side: "bottom",
+      },
+    },
+    {
+      element: SEL("contests-filters"),
+      popover: {
+        title: "Platform filters",
+        description: "Show or hide platforms to focus your schedule.",
+        side: "bottom",
+      },
+    },
+    {
+      element: SEL("contests-list"),
+      popover: {
+        title: "Upcoming contests",
+        description: "Check start times and durations, open the contest, or add it to Google Calendar.",
         side: "top",
       },
     },
@@ -243,6 +271,15 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
         title: "Topic radar",
         description:
           "Combined Codeforces + LeetCode solved-topic frequencies, scaled with markers 5, 10, 20, 30, 100, 200, and 300 for quick comparison.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("dash-recommendations"),
+      popover: {
+        title: "Personalized practice",
+        description:
+          "Your least-practiced topics become actionable Codeforces and LeetCode practice recommendations at a rating-matched difficulty.",
         side: "top",
       },
     },
@@ -375,6 +412,7 @@ export function tourIdForPathname(pathname: string): TourId | null {
   if (pathname === "/leaderboard") return "leaderboard";
   if (/^\/leaderboard\/[^/]+$/.test(pathname)) return "universityBoard";
   if (pathname === "/cp-rankings") return "cpRankings";
+  if (pathname === "/contests") return "contests";
   if (pathname === "/potd" || pathname === "/daily-practice") return "potd";
   if (pathname === "/dashboard") return "dashboard";
   if (pathname === "/admin/daily-practice") return "adminDailyPractice";

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heatmap } from "@/components/heatmap";
 import { TopicRadarChart } from "@/components/topic-radar-chart";
+import { TopicRecommendations } from "@/components/topic-recommendations";
 import { PLATFORM_LABELS } from "@/types";
 import type { HeatmapData } from "@/types";
 import type { TopicRadarPoint } from "@/lib/topic-radar";
@@ -126,6 +127,8 @@ export function DashboardClient({
 
   const leetcodeProfile = currentProfiles.find((p) => p.platform === "LEETCODE");
   const leetcodeRating = leetcodeProfile?.rating || leetcodeProfile?.maxRating || 0;
+  const codeforcesRating =
+    currentProfiles.find((p) => p.platform === "CODEFORCES")?.rating || 0;
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -322,6 +325,13 @@ export function DashboardClient({
           data={topicRadar}
           codeforcesHandle={topicHandles.codeforces}
           leetcodeHandle={topicHandles.leetcode}
+        />
+      </div>
+
+      <div className="mb-6">
+        <TopicRecommendations
+          topics={topicRadar}
+          codeforcesRating={codeforcesRating}
         />
       </div>
 

@@ -20,7 +20,6 @@ type SortKey =
   | "rank"
   | "totalSolved"
   | "bestRating"
-  | "longestPotdStreak"
   | "CODEFORCES"
   | "LEETCODE"
   | "ATCODER"
@@ -42,7 +41,6 @@ export function LeaderboardTable({
     if (sortKey === "rank") { av = a.rank; bv = b.rank; }
     else if (sortKey === "totalSolved") { av = a.totalSolved; bv = b.totalSolved; }
     else if (sortKey === "bestRating") { av = a.bestRating; bv = b.bestRating; }
-    else if (sortKey === "longestPotdStreak") { av = a.longestPotdStreak; bv = b.longestPotdStreak; }
     else {
       av = a.platforms.find((p) => p.platform === sortKey as Platform)?.problemsSolved || 0;
       bv = b.platforms.find((p) => p.platform === sortKey as Platform)?.problemsSolved || 0;
@@ -96,12 +94,6 @@ export function LeaderboardTable({
               <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer" onClick={() => handleSort("totalSolved")}>
                 Total
               </th>
-              <th
-                className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer hidden md:table-cell"
-                onClick={() => handleSort("longestPotdStreak")}
-              >
-                POTD 🔥
-              </th>
               {(["CODEFORCES", "LEETCODE", "ATCODER", "CODECHEF"] as Platform[]).map((p) => (
                 <th key={p} className="px-3 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer hidden lg:table-cell" onClick={() => handleSort(p as SortKey)}>
                   {PLATFORM_SHORT_LABELS[p]}
@@ -137,9 +129,6 @@ export function LeaderboardTable({
                   </td>
                 )}
                 <td className="px-4 py-3 text-right font-mono font-semibold text-primary">{entry.totalSolved}</td>
-                <td className="px-4 py-3 text-right font-mono hidden md:table-cell">
-                  {entry.longestPotdStreak > 0 ? entry.longestPotdStreak : "—"}
-                </td>
                 {(["CODEFORCES", "LEETCODE", "ATCODER", "CODECHEF"] as Platform[]).map((p) => {
                   const prof = entry.platforms.find((pp) => pp.platform === p);
                   return (

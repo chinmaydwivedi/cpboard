@@ -17,7 +17,7 @@ import {
   Sparkles,
   RefreshCw,
   Shield,
-  Flame,
+  CalendarDays,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import {
@@ -35,7 +35,7 @@ import { toast } from "sonner";
 const links = [
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/cp-rankings", label: "CP Rankings", icon: Zap },
-  { href: "/potd", label: "POTD", icon: Flame },
+  { href: "/contests", label: "Contests", icon: CalendarDays },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 
