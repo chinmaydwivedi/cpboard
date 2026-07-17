@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table,
   TableBody,
@@ -18,6 +19,7 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  Crown,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -26,6 +28,7 @@ type CPUser = {
   rank: number;
   username: string;
   name: string | null;
+  avatarUrl: string | null;
   handle: string;
   rating: number;
   maxRating: number;
@@ -42,6 +45,7 @@ type DistributionEntry = {
 
 export function CPRankingsClient({
   users,
+  topUsers,
   distribution,
   page,
   totalPages,
@@ -50,6 +54,7 @@ export function CPRankingsClient({
   averageRating,
 }: {
   users: CPUser[];
+  topUsers: CPUser[];
   distribution: DistributionEntry[];
   page: number;
   totalPages: number;
@@ -88,6 +93,87 @@ export function CPRankingsClient({
           </p>
         </div>
       </div>
+
+      {topUsers.length > 0 && (
+        <section
+          className="relative overflow-hidden rounded-lg border border-border/60 bg-linear-to-b from-secondary/35 to-card px-4 pb-4 pt-8 sm:px-8 sm:pt-10"
+          data-tour="cp-podium"
+        >
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_oklab,var(--primary)_10%,transparent),transparent_52%)]" />
+          <div className="relative mb-7 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Top rated
+            </p>
+            <h2 className="mt-1 text-sm font-semibold">Codeforces podium</h2>
+          </div>
+
+          <div className="relative mx-auto grid max-w-2xl gap-3 sm:grid-cols-3 sm:items-end">
+            {[topUsers[1], topUsers[0], topUsers[2]]
+              .filter((user): user is CPUser => Boolean(user))
+              .map((user) => {
+              const rankStyle = {
+                1: {
+                  ring: "border-amber-300/70 bg-amber-400/10",
+                  crown: "text-amber-300",
+                  label: "text-amber-300",
+                  pedestal: "h-20 border-amber-400/20 bg-amber-400/8",
+                },
+                2: {
+                  ring: "border-slate-300/60 bg-slate-300/10",
+                  crown: "text-slate-300",
+                  label: "text-slate-300",
+                  pedestal: "h-14 border-slate-300/15 bg-slate-300/5",
+                },
+                3: {
+                  ring: "border-orange-400/55 bg-orange-500/10",
+                  crown: "text-orange-400",
+                  label: "text-orange-400",
+                  pedestal: "h-10 border-orange-400/15 bg-orange-500/5",
+                },
+              }[user.rank as 1 | 2 | 3];
+
+              return (
+                <article
+                  key={user.username}
+                  className={cn("flex flex-col items-center", user.rank === 1 && "sm:-translate-y-4")}
+                >
+                  <Crown className={cn("mb-2 size-5", rankStyle.crown)} fill="currentColor" />
+                  <Link href={`/u/${user.username}`} className="group flex flex-col items-center">
+                    <Avatar className={cn("size-20 border-2 shadow-lg", rankStyle.ring)}>
+                      {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
+                      <AvatarFallback className="text-xl font-semibold">
+                        {(user.name || user.username).slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <p className="mt-3 max-w-40 truncate text-sm font-semibold transition-colors group-hover:text-primary">
+                      {user.name || user.username}
+                    </p>
+                  </Link>
+                  <p
+                    className={cn("mt-1 font-mono text-lg font-bold", rankStyle.label)}
+                    style={{ color: getCodeforcesRankColor(user.rating) }}
+                  >
+                    {user.rating}
+                  </p>
+                  <div
+                    className={cn(
+                      "mt-3 flex w-full flex-col items-center justify-center rounded-t-lg border border-b-0",
+                      rankStyle.pedestal,
+                    )}
+                  >
+                    <span className={cn("font-mono text-lg font-bold", rankStyle.label)}>
+                      #{user.rank}
+                    </span>
+                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                      {user.universityShortName}
+                    </span>
+                  </div>
+                </article>
+              );
+              })}
+          </div>
+        </section>
+      )}
 
       {distribution.length > 0 && (
         <div className="rounded-lg border border-border/60 p-5" data-tour="cp-distribution">

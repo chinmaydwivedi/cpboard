@@ -14,7 +14,7 @@ async function getCPData(requestedPage: number) {
     const totalPages = Math.max(1, Math.ceil(totalUsers / PAGE_SIZE));
     const page = Math.min(requestedPage, totalPages);
 
-    const [cfProfiles, ratingRows, ratingStats] = await Promise.all([
+    const [cfProfiles, topProfiles, ratingRows, ratingStats] = await Promise.all([
       prisma.platformProfile.findMany({
         where,
         include: {
@@ -25,6 +25,16 @@ async function getCPData(requestedPage: number) {
         orderBy: [{ rating: "desc" }, { userId: "asc" }],
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
+      }),
+      prisma.platformProfile.findMany({
+        where,
+        include: {
+          user: {
+            include: { university: true },
+          },
+        },
+        orderBy: [{ rating: "desc" }, { userId: "asc" }],
+        take: 3,
       }),
       prisma.platformProfile.findMany({
         where,
@@ -41,6 +51,19 @@ async function getCPData(requestedPage: number) {
       rank: (page - 1) * PAGE_SIZE + i + 1,
       username: p.user.username,
       name: p.user.name,
+      avatarUrl: p.user.avatarUrl,
+      handle: p.handle,
+      rating: p.rating,
+      maxRating: p.maxRating,
+      cfRank: p.rank,
+      universityShortName: p.user.university.shortName,
+      contestsCount: p.contestsCount,
+    }));
+    const topUsers = topProfiles.map((p, i) => ({
+      rank: i + 1,
+      username: p.user.username,
+      name: p.user.name,
+      avatarUrl: p.user.avatarUrl,
       handle: p.handle,
       rating: p.rating,
       maxRating: p.maxRating,
@@ -67,6 +90,7 @@ async function getCPData(requestedPage: number) {
 
     return {
       users,
+      topUsers,
       distribution,
       page,
       totalPages,
@@ -77,6 +101,7 @@ async function getCPData(requestedPage: number) {
   } catch {
     return {
       users: [],
+      topUsers: [],
       distribution: [],
       page: 1,
       totalPages: 1,

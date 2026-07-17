@@ -138,6 +138,15 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       },
     },
     {
+      element: SEL("cp-podium"),
+      popover: {
+        title: "Top three",
+        description:
+          "The highest-rated Codeforces users are featured on a live gold, silver, and bronze podium.",
+        side: "bottom",
+      },
+    },
+    {
       element: SEL("cp-distribution"),
       popover: {
         title: "Rating distribution",

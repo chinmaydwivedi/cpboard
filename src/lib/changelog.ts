@@ -60,9 +60,9 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         pageHref: "/cp-rankings",
         pageLabel: "CP Rankings",
         iconSrc: "/favicon.ico",
-        title: "Paginated CP Rankings",
+        title: "CP Rankings Podium and Pagination",
         description:
-          "Codeforces rankings now load ten users per page while preserving global ranks, full-board statistics, and stable ordering.",
+          "The top three Codeforces users now get a live gold, silver, and bronze podium, while the full rankings load ten users per page with stable global ranks.",
       },
       {
         id: "snippex-reference",

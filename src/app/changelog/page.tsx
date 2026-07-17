@@ -36,6 +36,27 @@ export default function ChangelogPage() {
         </div>
         <h2 className="text-xl font-semibold">{latest.headline}</h2>
         <p className="text-sm text-muted-foreground mt-1.5">{latest.summary}</p>
+        <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+          {latest.highlights.map((item) => (
+            <li
+              key={item.id}
+              className="rounded-md border border-border/50 bg-background/55 p-3"
+            >
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="h-4 px-1.5 font-mono text-[9px]"
+                >
+                  {item.label}
+                </Badge>
+                <span className="text-xs font-medium">{item.title}</span>
+              </div>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                {item.description}
+              </p>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="space-y-4" data-tour="changelog-history">
