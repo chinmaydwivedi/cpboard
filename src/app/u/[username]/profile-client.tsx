@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import NextImage from "next/image";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -85,8 +86,6 @@ export function ProfileClient({
     } catch {
       toast.error("Network error");
       setDeleting(false);
-    } finally {
-      router.refresh();
     }
   };
 
@@ -121,9 +120,16 @@ export function ProfileClient({
         className="mb-8 flex items-start gap-4"
         data-tour="profile-header"
       >
-        <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary shrink-0 overflow-hidden">
+        <div className="relative h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary shrink-0 overflow-hidden">
           {user.avatarUrl ? (
-            <img src={user.avatarUrl} alt={user.name || user.username} className="h-full w-full object-cover" />
+            <NextImage
+              src={user.avatarUrl}
+              alt={user.name || user.username}
+              fill
+              sizes="56px"
+              unoptimized
+              className="object-cover"
+            />
           ) : (
             (user.name || user.username)[0].toUpperCase()
           )}

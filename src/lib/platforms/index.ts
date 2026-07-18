@@ -1,5 +1,12 @@
-import { Platform } from "@prisma/client";
+import { Platform, Prisma } from "@prisma/client";
 import type { PlatformData } from "@/types";
+import {
+  acquirePlatformSyncLease,
+  completePlatformSyncLease,
+  lockPlatformProfileTransaction,
+  PlatformProfileNotLinkedError,
+  USER_SYNC_COOLDOWN_MS,
+} from "@/lib/platform-sync-lease";
 import { fetchCodeforcesData } from "./codeforces";
 import { fetchLeetcodeData } from "./leetcode";
 import { fetchAtcoderData } from "./atcoder";
@@ -12,9 +19,41 @@ const fetchers: Record<Platform, (handle: string) => Promise<PlatformData>> = {
   CODECHEF: fetchCodechefData,
 };
 
+const OWNERSHIP_VERIFIED_PLATFORMS = new Set<Platform>([
+  "CODEFORCES",
+  "LEETCODE",
+]);
+
+export class PlatformVerificationRequiredError extends Error {
+  constructor() {
+    super("Verify ownership of this handle before linking it");
+    this.name = "PlatformVerificationRequiredError";
+  }
+}
+
+export class PlatformHandleAlreadyClaimedError extends Error {
+  constructor() {
+    super("This handle is already linked to another CPBoard account");
+    this.name = "PlatformHandleAlreadyClaimedError";
+  }
+}
+
+export type PlatformSyncOptions = {
+  /** Explicit onboarding/connect flows may create a profile. */
+  allowProfileCreate?: boolean;
+  /** New accounts prove protected handles; pre-rollout accounts are exempt. */
+  requireOwnershipVerification?: boolean;
+  /** Durable cooldown shared by all serverless instances. */
+  minIntervalMs?: number;
+};
+
+function normalizeHandle(handle: string) {
+  return handle.trim().toLowerCase();
+}
+
 export async function fetchPlatformData(
   platform: Platform,
-  handle: string
+  handle: string,
 ): Promise<PlatformData> {
   const fetcher = fetchers[platform];
   if (!fetcher) throw new Error(`Unknown platform: ${platform}`);
@@ -24,112 +63,239 @@ export async function fetchPlatformData(
 export async function syncUserPlatform(
   userId: string,
   platform: Platform,
-  handle: string
+  handle: string,
+  options: PlatformSyncOptions = {},
 ) {
   const { prisma } = await import("@/lib/prisma");
+  const ownershipProtected = OWNERSHIP_VERIFIED_PLATFORMS.has(platform);
+  const requireOwnershipVerification =
+    ownershipProtected && options.requireOwnershipVerification !== false;
+  const allowProfileCreate = Boolean(options.allowProfileCreate);
+  const lease = await acquirePlatformSyncLease({
+    userId,
+    platform,
+    minIntervalMs: options.minIntervalMs ?? USER_SYNC_COOLDOWN_MS,
+  });
 
   try {
-    const existingProfile = await prisma.platformProfile.findUnique({
+    const initialProfile = await prisma.platformProfile.findUnique({
       where: { userId_platform: { userId, platform } },
       select: {
-        rating: true,
-        maxRating: true,
-        problemsSolved: true,
-        rank: true,
-        contestsCount: true,
+        handle: true,
+        verified: true,
+        verifiedAt: true,
+        ownershipKey: true,
       },
     });
+
+    if (!initialProfile && !allowProfileCreate) {
+      throw new PlatformProfileNotLinkedError();
+    }
+    if (
+      requireOwnershipVerification &&
+      (!initialProfile?.verified ||
+        !initialProfile.verifiedAt ||
+        !initialProfile.ownershipKey ||
+        normalizeHandle(initialProfile.handle) !== normalizeHandle(handle))
+    ) {
+      throw new PlatformVerificationRequiredError();
+    }
 
     const data = await fetchPlatformData(platform, handle);
-    const mergedData: PlatformData = {
-      ...data,
-      rating:
-        data.rating > 0 ? data.rating : (existingProfile?.rating ?? data.rating),
-      maxRating: Math.max(data.maxRating, existingProfile?.maxRating ?? 0),
-      problemsSolved:
-        data.problemsSolved > 0
-          ? data.problemsSolved
-          : (existingProfile?.problemsSolved ?? data.problemsSolved),
-      rank: data.rank || existingProfile?.rank || null,
-      contestsCount:
-        data.contestsCount > 0
-          ? data.contestsCount
-          : (existingProfile?.contestsCount ?? data.contestsCount),
-    };
+    const syncedAt = new Date();
+    const activityCutoff = new Date(syncedAt);
+    activityCutoff.setUTCHours(0, 0, 0, 0);
+    activityCutoff.setUTCFullYear(activityCutoff.getUTCFullYear() - 1);
+    const activityRows = Object.entries(data.dailyActivity)
+      .map(([dateStr, submissionCount]) => ({
+        date: new Date(dateStr),
+        submissionCount,
+      }))
+      .filter(
+        (activity) =>
+          Number.isFinite(activity.date.getTime()) &&
+          activity.date >= activityCutoff,
+      )
+      .slice(0, 500);
 
-    await prisma.platformProfile.upsert({
-      where: { userId_platform: { userId, platform } },
-      create: {
-        userId,
-        platform,
-        handle: mergedData.handle,
-        rating: mergedData.rating,
-        maxRating: mergedData.maxRating,
-        problemsSolved: mergedData.problemsSolved,
-        rank: mergedData.rank,
-        contestsCount: mergedData.contestsCount,
-        lastSynced: new Date(),
+    const mergedData = await prisma.$transaction(async (tx) => {
+      await lockPlatformProfileTransaction(tx, userId, platform);
+
+      const currentProfile = await tx.platformProfile.findUnique({
+        where: { userId_platform: { userId, platform } },
+        select: {
+          id: true,
+          handle: true,
+          rating: true,
+          maxRating: true,
+          problemsSolved: true,
+          rank: true,
+          contestsCount: true,
+          verified: true,
+          verifiedAt: true,
+          verificationMethod: true,
+          ownershipKey: true,
+        },
+      });
+
+      if (!currentProfile && !allowProfileCreate) {
+        throw new PlatformProfileNotLinkedError();
+      }
+
+      const normalizedHandle = normalizeHandle(data.handle);
+      const sameExistingHandle =
+        currentProfile != null &&
+        normalizeHandle(currentProfile.handle) === normalizedHandle;
+      const hasOwnershipVerification = Boolean(
+        requireOwnershipVerification &&
+          sameExistingHandle &&
+          currentProfile?.verified &&
+          currentProfile.verifiedAt &&
+          currentProfile.ownershipKey === `${platform}:${normalizedHandle}`,
+      );
+      if (requireOwnershipVerification && !hasOwnershipVerification) {
+        throw new PlatformVerificationRequiredError();
+      }
+
+      const previousData = sameExistingHandle ? currentProfile : null;
+      const result: PlatformData = {
+        ...data,
+        rating:
+          data.rating > 0
+            ? data.rating
+            : (previousData?.rating ?? data.rating),
+        maxRating: Math.max(data.maxRating, previousData?.maxRating ?? 0),
+        problemsSolved:
+          data.problemsSolved > 0
+            ? data.problemsSolved
+            : (previousData?.problemsSolved ?? data.problemsSolved),
+        rank: data.rank || previousData?.rank || null,
+        contestsCount:
+          data.contestsCount > 0
+            ? data.contestsCount
+            : (previousData?.contestsCount ?? data.contestsCount),
+      };
+
+      const profileData = {
+        handle: result.handle,
+        rating: result.rating,
+        maxRating: result.maxRating,
+        problemsSolved: result.problemsSolved,
+        rank: result.rank,
+        contestsCount: result.contestsCount,
+        lastSynced: syncedAt,
         verified: true,
-      },
-      update: {
-        handle: mergedData.handle,
-        rating: mergedData.rating,
-        maxRating: mergedData.maxRating,
-        problemsSolved: mergedData.problemsSolved,
-        rank: mergedData.rank,
-        contestsCount: mergedData.contestsCount,
-        lastSynced: new Date(),
-        verified: true,
-      },
-    });
+        verifiedAt: ownershipProtected
+          ? requireOwnershipVerification
+            ? currentProfile?.verifiedAt ?? null
+            : sameExistingHandle
+              ? currentProfile?.verifiedAt ?? syncedAt
+              : syncedAt
+          : null,
+        verificationMethod: ownershipProtected
+          ? requireOwnershipVerification
+            ? currentProfile?.verificationMethod ?? null
+            : "LEGACY_ACCOUNT"
+          : "PUBLIC_PROFILE",
+        ownershipKey: ownershipProtected
+          ? requireOwnershipVerification
+            ? currentProfile?.ownershipKey ?? null
+            : `${platform}:${normalizedHandle}`
+          : null,
+      };
 
-    const activityEntries = Object.entries(mergedData.dailyActivity);
-    if (activityEntries.length > 0) {
-      const last365 = activityEntries
-        .filter(([dateStr]) => {
-          const d = new Date(dateStr);
-          const yearAgo = new Date();
-          yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-          return d >= yearAgo;
-        })
-        .slice(0, 500);
+      if (currentProfile) {
+        await tx.platformProfile.update({
+          where: { id: currentProfile.id },
+          data: profileData,
+        });
+      } else {
+        if (requireOwnershipVerification) {
+          throw new PlatformVerificationRequiredError();
+        }
+        await tx.platformProfile.create({
+          data: { userId, platform, ...profileData },
+        });
+      }
 
-      for (const [dateStr, count] of last365) {
-        await prisma.dailyActivity.upsert({
+      if (!sameExistingHandle) {
+        await tx.dailyActivity.deleteMany({ where: { userId, platform } });
+      } else if (activityRows.length > 0) {
+        await tx.dailyActivity.deleteMany({
           where: {
-            userId_platform_date: {
-              userId,
-              platform,
-              date: new Date(dateStr),
-            },
-          },
-          create: {
             userId,
             platform,
-            date: new Date(dateStr),
-            submissionCount: count,
-          },
-          update: {
-            submissionCount: count,
+            date: { in: activityRows.map((activity) => activity.date) },
           },
         });
       }
-    }
 
-    await prisma.syncLog.create({
-      data: { userId, platform, status: "SUCCESS" },
+      if (activityRows.length > 0) {
+        await tx.dailyActivity.createMany({
+          data: activityRows.map((activity) => ({
+            userId,
+            platform,
+            date: activity.date,
+            submissionCount: activity.submissionCount,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      await tx.syncLog.create({
+        data: { userId, platform, status: "SUCCESS", syncedAt },
+      });
+      return result;
     });
 
+    await completePlatformSyncLease(lease, { success: true }).catch((error) => {
+      console.error("Failed to release successful platform sync lease", error);
+    });
     return mergedData;
   } catch (error) {
-    await prisma.syncLog.create({
-      data: {
-        userId,
-        platform,
-        status: "FAILED",
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-    });
-    throw error;
+    const normalizedError =
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+        ? new PlatformHandleAlreadyClaimedError()
+        : error;
+    const message =
+      normalizedError instanceof Error ? normalizedError.message : "Unknown error";
+    const shouldBackoff =
+      !(normalizedError instanceof PlatformProfileNotLinkedError) &&
+      !(normalizedError instanceof PlatformVerificationRequiredError) &&
+      !(normalizedError instanceof PlatformHandleAlreadyClaimedError);
+    const cleanupTasks: Promise<unknown>[] = [
+      completePlatformSyncLease(
+        lease,
+        shouldBackoff ? { success: false, error: message } : { success: true },
+      ),
+    ];
+    if (
+      !(normalizedError instanceof PlatformProfileNotLinkedError) &&
+      !(normalizedError instanceof PlatformVerificationRequiredError) &&
+      !(normalizedError instanceof PlatformHandleAlreadyClaimedError)
+    ) {
+      cleanupTasks.push(
+        prisma.$transaction(async (tx) => {
+          await lockPlatformProfileTransaction(tx, userId, platform);
+          const profileStillExists = await tx.platformProfile.findUnique({
+            where: { userId_platform: { userId, platform } },
+            select: { id: true },
+          });
+          if (!profileStillExists) return;
+
+          await tx.syncLog.create({
+            data: {
+              userId,
+              platform,
+              status: "FAILED",
+              error: message.slice(0, 500),
+            },
+          });
+        }),
+      );
+    }
+    await Promise.allSettled(cleanupTasks);
+    throw normalizedError;
   }
 }

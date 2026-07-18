@@ -44,6 +44,7 @@ async function fetchCodechefSolvedCountFromProfile(handle: string): Promise<numb
   try {
     const res = await fetch(`https://www.codechef.com/users/${encodeURIComponent(handle)}`, {
       cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
       redirect: "follow",
       headers: {
         "User-Agent": "Mozilla/5.0",
@@ -61,6 +62,7 @@ async function fetchCodechefSolvedCountFromProfile(handle: string): Promise<numb
 export async function fetchCodechefData(handle: string): Promise<PlatformData> {
   const res = await fetch(`${API_BASE}/codechef/${encodeURIComponent(handle)}`, {
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
     headers: {
       "User-Agent": "Mozilla/5.0",
       Accept: "application/json, text/plain, */*",

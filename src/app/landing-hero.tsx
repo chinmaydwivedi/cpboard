@@ -68,7 +68,7 @@ export function LandingHero({
               Compete with peers. Rise through the ranks.
             </p>
 
-            <div className="mt-8 flex items-center justify-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href={isLoggedIn ? "/leaderboard" : "/login"}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -88,7 +88,7 @@ export function LandingHero({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15 }}
-            className="mx-auto mt-20 max-w-lg grid grid-cols-4 gap-6"
+            className="mx-auto mt-16 grid max-w-lg grid-cols-2 gap-x-4 gap-y-6 sm:mt-20 sm:grid-cols-4 sm:gap-6"
             data-tour="home-stats"
           >
             {[
@@ -137,7 +137,7 @@ export function LandingHero({
         />
         <div className="absolute inset-0 bg-linear-to-b from-background via-background/70 to-background dark:from-background dark:via-background/60 dark:to-background" />
         <div className="relative mx-auto max-w-5xl px-5 py-20">
-          <div className="rounded-lg border border-border/40 bg-card/60 backdrop-blur-sm p-10 text-center" data-tour="home-cta">
+          <div className="rounded-lg border border-border/40 bg-card/60 p-6 text-center backdrop-blur-sm sm:p-10" data-tour="home-cta">
             <h2 className="font-heading text-2xl italic">Ready to compete?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {isLoggedIn

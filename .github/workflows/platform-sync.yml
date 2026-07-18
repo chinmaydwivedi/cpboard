@@ -1,0 +1,39 @@
+name: Platform sync
+
+on:
+  schedule:
+    - cron: "30 0 * * *"
+    - cron: "30 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpboard-platform-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Refresh linked platform profiles
+        env:
+          CPBOARD_CRON_SECRET: ${{ secrets.CPBOARD_CRON_SECRET }}
+          CPBOARD_PRODUCTION_URL: ${{ vars.CPBOARD_PRODUCTION_URL }}
+        run: |
+          test -n "$CPBOARD_CRON_SECRET"
+          test -n "$CPBOARD_PRODUCTION_URL"
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 2 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 70 \
+            --header "Authorization: Bearer $CPBOARD_CRON_SECRET" \
+            --output /tmp/cpboard-sync-result.json \
+            "$CPBOARD_PRODUCTION_URL/api/cron/sync-all"
+          jq -c '{selected, attempted, successful, failed, skipped, timedOut}' /tmp/cpboard-sync-result.json

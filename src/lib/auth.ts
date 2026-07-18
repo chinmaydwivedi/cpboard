@@ -3,24 +3,20 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { prisma } from "./prisma";
 import { isAllowlistedAdminEmail } from "./admin";
+import type { AdapterUser } from "next-auth/adapters";
 
 const baseAdapter = PrismaAdapter(prisma);
 
 async function findUniversityByDomain(domain: string) {
-  const exact = await prisma.university.findUnique({
-    where: { emailDomain: domain },
-  });
-  if (exact) return exact;
-
   const parts = domain.split(".");
-  for (let i = 1; i < parts.length; i++) {
-    const suffix = parts.slice(i).join(".");
-    const match = await prisma.university.findFirst({
-      where: { emailDomain: { endsWith: suffix } },
-    });
-    if (match) return match;
-  }
-  return null;
+  const candidates = parts.map((_, index) => parts.slice(index).join("."));
+  const universities = await prisma.university.findMany({
+    where: { emailDomain: { in: candidates } },
+  });
+  const byDomain = new Map(
+    universities.map((university) => [university.emailDomain, university]),
+  );
+  return candidates.map((candidate) => byDomain.get(candidate)).find(Boolean) ?? null;
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -31,7 +27,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       : undefined),
   adapter: {
     ...baseAdapter,
-    async createUser(data: any) {
+    async createUser(data: AdapterUser) {
       const email = data.email as string;
       const existing = await prisma.user.findUnique({
         where: { email },
@@ -71,7 +67,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       try {
         return await prisma.session.delete({ where: { sessionToken } });
       } catch {
-        return null as any;
+        return null;
       }
     },
   },
@@ -89,36 +85,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       maxAge: 60 * 60, // 1 hour token validity
       async sendVerificationRequest({ identifier: email, url, provider }) {
         const nodemailer = await import("nodemailer");
-        const transport = nodemailer.createTransport(provider.server as any);
-        console.log("[EMAIL] Sending to:", email, "from:", provider.from);
-        console.log("[EMAIL] SMTP host:", (provider.server as any)?.host);
+        const server = provider.server as Parameters<
+          typeof nodemailer.createTransport
+        >[0];
+        const transport = nodemailer.createTransport(server);
         try {
           const result = await transport.sendMail({
             to: email,
             from: provider.from,
             subject: "Sign in to CPBoard",
-            text: `Sign in to CPBoard\n\nClick the link below to sign in:\n${url}\n\nIf you did not request this, you can ignore this email.\n`,
+            text: `Sign in to CPBoard\n\nClick the link below to sign in:\n${url}\n\nThis link expires in one hour. If you did not request this, you can ignore this email.\n`,
             html: `
               <div style="max-width:480px;margin:0 auto;font-family:Arial,sans-serif;padding:32px 24px;background:#0a0a0f;color:#e5e5e5;border-radius:12px;">
                 <h1 style="font-size:20px;font-weight:bold;margin:0 0 8px 0;color:#ffffff;">CPBoard</h1>
                 <p style="font-size:14px;color:#999;margin:0 0 24px 0;">University Competitive Programming Leaderboard</p>
-                <p style="font-size:14px;line-height:1.6;margin:0 0 24px 0;">Click the button below to sign in to your account. This link expires in 24 hours.</p>
+                <p style="font-size:14px;line-height:1.6;margin:0 0 24px 0;">Click the button below to sign in to your account. This link expires in one hour.</p>
                 <a href="${url}" style="display:inline-block;background:#dc2626;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">Sign In</a>
                 <p style="font-size:12px;color:#666;margin:24px 0 0 0;">If you didn't request this email, you can safely ignore it.</p>
               </div>
             `,
           });
-          console.log("[EMAIL] Response:", result.response);
-          console.log("[EMAIL] Accepted:", result.accepted);
-          console.log("[EMAIL] Rejected:", result.rejected);
-          console.log("[EMAIL] MessageId:", result.messageId);
           const failed = result.rejected?.filter(Boolean);
           if (failed?.length) {
-            throw new Error(`Email could not be sent to ${failed.join(", ")}`);
+            throw new Error("Email could not be sent");
           }
-        } catch (err: any) {
-          console.error("[EMAIL] SEND FAILED:", err.message);
-          throw err;
+        } catch (error: unknown) {
+          console.error("[EMAIL] SEND FAILED");
+          throw error;
         }
       },
     }),
@@ -153,17 +146,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         const dbUser = await prisma.user.findUnique({
           where: { email: user.email! },
-          include: { university: true },
+          select: {
+            id: true,
+            username: true,
+            role: true,
+            university: {
+              select: { id: true, name: true, shortName: true },
+            },
+          },
         });
         if (dbUser) {
           session.user.id = dbUser.id;
-          (session as any).university = {
+          session.university = {
             id: dbUser.university.id,
             name: dbUser.university.name,
             shortName: dbUser.university.shortName,
           };
-          (session as any).role = dbUser.role;
-          (session as any).username = dbUser.username;
+          session.role = dbUser.role;
+          session.username = dbUser.username;
         }
       }
       return session;

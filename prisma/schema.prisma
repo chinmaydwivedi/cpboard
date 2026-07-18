@@ -52,33 +52,109 @@ model University {
 }
 
 model User {
-  id                 String    @id @default(cuid())
-  email              String    @unique
-  name               String?
-  username           String    @unique
-  avatarUrl          String?
-  role               Role      @default(STUDENT)
-  profileViews       Int       @default(0)
-  universityId       String
-  emailVerified      DateTime?
-  onboardingComplete Boolean   @default(false)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                            String    @id @default(cuid())
+  email                         String    @unique
+  name                          String?
+  username                      String    @unique
+  avatarUrl                     String?
+  role                          Role      @default(STUDENT)
+  profileViews                  Int       @default(0)
+  universityId                  String
+  emailVerified                 DateTime?
+  onboardingComplete            Boolean   @default(false)
+  ownershipVerificationRequired Boolean   @default(true)
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
 
-  university       University        @relation(fields: [universityId], references: [id])
-  platformProfiles PlatformProfile[]
-  dailyActivities  DailyActivity[]
-  syncLogs         SyncLog[]
-  accounts         Account[]
-  sessions         Session[]
-  pageVisits       PageVisit[]
-  dailyPracticeProblemsCreated DailyPracticeProblem[]  @relation("DailyPracticeProblemsCreated")
-  dailyPracticeSolutionsCreated DailyPracticeSolution[] @relation("DailyPracticeSolutionsCreated")
-  dailyPracticeComments DailyPracticeComment[]
-  potdSolves PotdSolve[]
+  university                      University                       @relation(fields: [universityId], references: [id])
+  platformProfiles                PlatformProfile[]
+  dailyActivities                 DailyActivity[]
+  syncLogs                        SyncLog[]
+  accounts                        Account[]
+  sessions                        Session[]
+  pageVisits                      PageVisit[]
+  dailyPracticeProblemsCreated    DailyPracticeProblem[]           @relation("DailyPracticeProblemsCreated")
+  dailyPracticeSolutionsCreated   DailyPracticeSolution[]          @relation("DailyPracticeSolutionsCreated")
+  dailyPracticeComments           DailyPracticeComment[]
+  potdSolves                      PotdSolve[]
+  notificationPreference          NotificationPreference?
+  pushSubscriptions               PushSubscription[]
+  platformVerificationChallenges  PlatformVerificationChallenge[]
+  platformVerificationStartLeases PlatformVerificationStartLease[]
+  platformSyncLeases              PlatformSyncLease[]
 
   @@index([universityId])
   @@index([username])
+}
+
+model NotificationPreference {
+  userId             String   @id
+  leaderAlerts       Boolean  @default(true)
+  contestAlerts      Boolean  @default(true)
+  contestLeadMinutes Int      @default(30)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  endpoint   String   @unique @db.VarChar(1024)
+  p256dh     String
+  auth       String
+  userAgent  String?
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([userId])
+}
+
+model NotificationDelivery {
+  id             String    @id @default(cuid())
+  subscriptionId String
+  eventKey       String
+  type           String
+  status         String    @default("PENDING")
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  subscription PushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, eventKey])
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
+model LeaderboardNotificationState {
+  key            String   @id
+  leaderUserId   String?
+  leaderUsername String?
+  leaderScore    Int      @default(0)
+  version        Int      @default(0)
+  changedAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ScheduledContest {
+  id              String   @id
+  title           String
+  url             String
+  platform        String
+  startTime       DateTime
+  endTime         DateTime
+  durationSeconds Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([startTime])
 }
 
 model Account {
@@ -98,6 +174,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Session {
@@ -107,6 +184,8 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -118,19 +197,22 @@ model VerificationToken {
 }
 
 model PlatformProfile {
-  id             String   @id @default(cuid())
-  userId         String
-  platform       Platform
-  handle         String
-  rating         Int      @default(0)
-  maxRating      Int      @default(0)
-  problemsSolved Int      @default(0)
-  rank           String?
-  contestsCount  Int      @default(0)
-  lastSynced     DateTime?
-  verified       Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                 String    @id @default(cuid())
+  userId             String
+  platform           Platform
+  handle             String
+  rating             Int       @default(0)
+  maxRating          Int       @default(0)
+  problemsSolved     Int       @default(0)
+  rank               String?
+  contestsCount      Int       @default(0)
+  lastSynced         DateTime?
+  verified           Boolean   @default(false)
+  verifiedAt         DateTime?
+  verificationMethod String?
+  ownershipKey       String?   @unique
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -138,6 +220,69 @@ model PlatformProfile {
   @@index([platform])
   @@index([rating])
   @@index([problemsSolved])
+  @@index([verified, lastSynced, id])
+  @@index([platform, verified, rating(sort: Desc), userId])
+}
+
+model PlatformVerificationChallenge {
+  id                    String    @id @default(cuid())
+  userId                String
+  platform              Platform
+  handle                String
+  normalizedHandle      String
+  allocationKey         String?   @unique
+  problemKey            String
+  problemTitle          String
+  problemUrl            String
+  requiredVerdict       String?
+  baselineSubmissionIds Json
+  issuedAt              DateTime  @default(now())
+  expiresAt             DateTime
+  attempts              Int       @default(0)
+  lastCheckedAt         DateTime?
+  verifiedAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+  @@index([platform, normalizedHandle, expiresAt])
+  @@index([expiresAt])
+}
+
+model PlatformVerificationStartLease {
+  userId        String
+  platform      Platform
+  lastStartedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, platform])
+}
+
+model PlatformSyncLease {
+  userId              String
+  platform            Platform
+  leaseToken          String
+  leaseUntil          DateTime
+  lastStartedAt       DateTime  @default(now())
+  nextAttemptAt       DateTime?
+  consecutiveFailures Int       @default(0)
+  lastError           String?
+  updatedAt           DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, platform])
+  @@index([leaseUntil])
+  @@index([nextAttemptAt, lastStartedAt])
+}
+
+model ProviderRequestLease {
+  provider      String   @id
+  nextAllowedAt DateTime
+  updatedAt     DateTime @updatedAt
 }
 
 model DailyActivity {
@@ -166,6 +311,7 @@ model SyncLog {
 
   @@index([userId])
   @@index([syncedAt])
+  @@index([userId, platform, status, syncedAt(sort: Desc)])
 }
 
 model PageVisit {
@@ -196,7 +342,7 @@ model DailyPracticeProblem {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  createdBy User @relation("DailyPracticeProblemsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy User                    @relation("DailyPracticeProblemsCreated", fields: [createdById], references: [id], onDelete: Cascade)
   solutions DailyPracticeSolution[]
   comments  DailyPracticeComment[]
   solves    PotdSolve[]
@@ -217,7 +363,7 @@ model DailyPracticeSolution {
   updatedAt   DateTime         @updatedAt
 
   problem   DailyPracticeProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  createdBy User                @relation("DailyPracticeSolutionsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy User                 @relation("DailyPracticeSolutionsCreated", fields: [createdById], references: [id], onDelete: Cascade)
 
   @@unique([problemId, language])
   @@index([createdById])
@@ -239,11 +385,12 @@ model DailyPracticeComment {
 }
 
 model PotdSolve {
-  id        String   @id @default(cuid())
-  problemId String
-  userId    String
-  solvedAt  DateTime @default(now())
+  id         String   @id @default(cuid())
+  problemId  String
+  userId     String
+  solvedAt   DateTime @default(now())
   solvedDate DateTime @db.Date
+  isVerified Boolean  @default(false)
 
   problem DailyPracticeProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
   user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)

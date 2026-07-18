@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { hasAdminAccess } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
+import { revalidateTag } from "next/cache";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -40,6 +42,8 @@ export async function POST(req: NextRequest) {
   const university = await prisma.university.create({
     data: { name, shortName, emailDomain },
   });
+  revalidateTag(CACHE_TAGS.universities, { expire: 0 });
+  revalidateTag(CACHE_TAGS.landingStats, { expire: 0 });
 
   return NextResponse.json({ university }, { status: 201 });
 }

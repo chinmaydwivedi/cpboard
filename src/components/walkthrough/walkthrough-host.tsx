@@ -50,7 +50,7 @@ export function WalkthroughHost() {
           onClick={() => {
             dismissTourNudge(tourId);
             bumpStorage();
-            runWalkthrough(tourId);
+            void runWalkthrough(tourId);
           }}
         >
           Start tour

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">CPBoard</title>
+  <rect width="512" height="512" rx="112" fill="#09090b"/>
+  <rect x="12" y="12" width="488" height="488" rx="100" fill="none" stroke="#27272a" stroke-width="8"/>
+  <path d="M96 176H416M96 256H416M96 336H416M176 96V416M256 96V416M336 96V416" stroke="#ffffff" stroke-opacity="0.035" stroke-width="4"/>
+  <path d="M231 174C213 154 189 144 161 144C101 144 64 190 64 256C64 322 101 368 161 368C189 368 214 358 232 338" fill="none" stroke="#f4f4f5" stroke-width="44" stroke-linecap="round"/>
+  <path d="M284 356V156H354C410 156 448 188 448 236C448 284 410 316 354 316H284" fill="none" stroke="#ef4444" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

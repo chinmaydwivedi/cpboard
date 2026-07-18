@@ -1,22 +1,16 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { getCurrentSession } from "@/lib/session";
 
 /** Always resolves the signed-in user’s current username (avoids stale /u/{username} after renames). */
 export default async function ProfileRedirectPage() {
-  const session = await auth();
+  const session = await getCurrentSession();
   if (!session?.user?.email) {
     redirect("/login");
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: { username: true },
-  });
-
-  if (!user?.username) {
+  if (!session.username) {
     redirect("/login");
   }
 
-  redirect(`/u/${user.username}`);
+  redirect(`/u/${session.username}`);
 }

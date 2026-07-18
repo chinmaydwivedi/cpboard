@@ -18,6 +18,253 @@ export type ChangelogRelease = {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    id: "2026-07-19-platform-ownership-verification",
+    publishedOn: "2026-07-19",
+    headline: "Verified Codeforces and LeetCode Handles",
+    summary:
+      "Accounts created after this rollout use a guided Codeforces and LeetCode submission challenge; every pre-existing member keeps the familiar direct link and sync flow.",
+    highlights: [
+      {
+        id: "five-minute-ownership-challenge",
+        label: "NEW",
+        pageHref: "/dashboard",
+        pageLabel: "Dashboard",
+        iconSrc: "/icon-192x192.png",
+        title: "Five-Minute Ownership Check",
+        description:
+          "Only new CPBoard accounts use the check. Each challenge includes an assigned beginner problem, its direct link, numbered submission steps, and a live five-minute countdown; pre-existing accounts are exempt.",
+      },
+      {
+        id: "codeforces-submission-proof",
+        label: "NEW",
+        pageHref: "/dashboard",
+        pageLabel: "Codeforces",
+        iconSrc: "/icon-192x192.png",
+        title: "Codeforces Compilation-Error Proof",
+        description:
+          "Open the exact problem from the challenge, submit intentionally non-compiling code, then return and check. CPBoard verifies the public submission ID, problem, verdict, and time without reading source code.",
+      },
+      {
+        id: "leetcode-submission-proof",
+        label: "NEW",
+        pageHref: "/dashboard",
+        pageLabel: "LeetCode",
+        iconSrc: "/icon-192x192.png",
+        title: "LeetCode Accepted-Submission Proof",
+        description:
+          "Open the linked beginner problem, solve or resubmit it, then return and check. CPBoard confirms a new Accepted submission from that username inside the challenge window.",
+      },
+      {
+        id: "submission-replay-protection",
+        label: "IMPROVED",
+        pageHref: "/dashboard",
+        pageLabel: "Security",
+        iconSrc: "/icon-192x192.png",
+        title: "Replay and Duplicate-Claim Protection",
+        description:
+          "Each challenge snapshots recent submissions, is bound to the signed-in user and candidate handle, and prevents newly verified handles from being claimed by a second account.",
+      },
+      {
+        id: "safe-handle-switching",
+        label: "FIXED",
+        pageHref: "/dashboard",
+        pageLabel: "Profiles",
+        iconSrc: "/icon-192x192.png",
+        title: "Safe Handle Changes",
+        description:
+          "For accounts using ownership checks, editing a verified handle keeps old stats intact while proof is pending. Pre-existing accounts keep direct handle updates, and duplicate claims are still blocked.",
+      },
+      {
+        id: "coordinated-provider-updates",
+        label: "IMPROVED",
+        pageHref: "/dashboard",
+        pageLabel: "Reliability",
+        iconSrc: "/icon-192x192.png",
+        title: "Coordinated Provider Updates",
+        description:
+          "Across app instances, sync work and provider requests are paced, overlapping work is avoided, and temporary provider failures retry with bounded backoff.",
+      },
+      {
+        id: "complete-public-accounts",
+        label: "FIXED",
+        pageHref: "/leaderboard",
+        pageLabel: "Public pages",
+        iconSrc: "/icon-192x192.png",
+        title: "Complete Accounts in Public Results",
+        description:
+          "Accounts that have not finished onboarding are now excluded from public rankings, profiles, and discovery until their setup is complete.",
+      },
+      {
+        id: "accepted-weekly-activity",
+        label: "FIXED",
+        pageHref: "/leaderboard",
+        pageLabel: "Weekly standout",
+        iconSrc: "/icon-192x192.png",
+        title: "Solved-Problem Weekly Standout",
+        description:
+          "The weekly standout now uses accepted or newly solved activity where platform history exposes it; LeetCode stays conservative instead of guessing from incomplete history.",
+      },
+      {
+        id: "official-contest-links",
+        label: "IMPROVED",
+        pageHref: "/contests",
+        pageLabel: "Contests",
+        iconSrc: "/icon-192x192.png",
+        title: "Official Contest Destinations",
+        description:
+          "Calendar entries now accept only official HTTPS contest links for the supported platforms before they are shown or added to a calendar.",
+      },
+      {
+        id: "protected-native-analytics",
+        label: "IMPROVED",
+        pageHref: "/",
+        pageLabel: "Site-wide",
+        iconSrc: "/icon-192x192.png",
+        title: "Better-Protected Site Analytics",
+        description:
+          "CPBoard’s first-party page events now require an authenticated session and are rate-limited, keeping site insights useful without accepting unchecked event volume.",
+      },
+    ],
+  },
+  {
+    id: "2026-07-18-faster-updates",
+    publishedOn: "2026-07-18",
+    headline: "Faster Syncs and Smoother Updates",
+    summary:
+      "CPBoard now refreshes data with less waiting, lighter page loads, and better-controlled background work across platforms, rankings, and notifications.",
+    highlights: [
+      {
+        id: "bulk-platform-sync",
+        label: "IMPROVED",
+        pageHref: "/dashboard",
+        pageLabel: "Dashboard",
+        iconSrc: "/icon-192x192.png",
+        title: "Much Faster Platform Syncs",
+        description:
+          "Platform history updates now use one short bulk transaction instead of hundreds of sequential writes, while independent provider and database work runs together.",
+      },
+      {
+        id: "fresh-cache-invalidation",
+        label: "IMPROVED",
+        pageHref: "/leaderboard",
+        pageLabel: "Rankings",
+        iconSrc: "/icon-192x192.png",
+        title: "Fast Pages Without Stale Updates",
+        description:
+          "Public stats and rankings are cached for speed, then precisely refreshed after a sync so new scores appear without waiting for an unrelated cache window.",
+      },
+      {
+        id: "lighter-shared-bundle",
+        label: "IMPROVED",
+        pageHref: "/",
+        pageLabel: "Site-wide",
+        iconSrc: "/icon-192x192.png",
+        title: "Lighter Initial Loading",
+        description:
+          "Analytics, tours, and chart libraries now load only when needed, reducing the JavaScript required for ordinary navigation.",
+      },
+      {
+        id: "smooth-dashboard-refresh",
+        label: "FIXED",
+        pageHref: "/dashboard",
+        pageLabel: "Dashboard",
+        iconSrc: "/icon-192x192.png",
+        title: "Sync Results Stay in Step",
+        description:
+          "Dashboard profile cards now reconcile refreshed server data while preserving unsaved handle edits, and heavy visual sections avoid rerendering during simple typing.",
+      },
+      {
+        id: "bounded-background-work",
+        label: "IMPROVED",
+        pageHref: "/dashboard",
+        pageLabel: "Updates",
+        iconSrc: "/icon-192x192.png",
+        title: "Better-Managed Background Work",
+        description:
+          "Sync and push tasks use bounded concurrency, upstream requests have deadlines, and non-critical analytics and counters finish after the response.",
+      },
+      {
+        id: "instant-loading-shells",
+        label: "NEW",
+        pageHref: "/cp-rankings",
+        pageLabel: "Navigation",
+        iconSrc: "/icon-192x192.png",
+        title: "Responsive Loading States",
+        description:
+          "CP Rankings, Contests, and profile routes now show theme-matched page skeletons immediately while fresh server data resolves.",
+      },
+    ],
+  },
+  {
+    id: "2026-07-18-browser-notifications",
+    publishedOn: "2026-07-18",
+    headline: "Leaderboard and Contest Alerts",
+    summary:
+      "CPBoard can now keep you updated with quiet, opt-in browser alerts for a new global leader and contests that are about to begin.",
+    highlights: [
+      {
+        id: "browser-notification-setup",
+        label: "NEW",
+        pageHref: "/dashboard",
+        pageLabel: "Dashboard",
+        iconSrc: "/icon-192x192.png",
+        title: "Opt-In Browser Notifications",
+        description:
+          "Enable the current browser, send a test alert, and disconnect it from a notification panel designed to match the Dashboard.",
+      },
+      {
+        id: "leader-change-alerts",
+        label: "NEW",
+        pageHref: "/leaderboard",
+        pageLabel: "Leaderboard",
+        iconSrc: "/icon-192x192.png",
+        title: "Global Leader Change Alerts",
+        description:
+          "Get notified when someone takes the #1 spot on the global cross-platform leaderboard without repeated alerts for ordinary score updates.",
+      },
+      {
+        id: "contest-reminder-alerts",
+        label: "NEW",
+        pageHref: "/contests",
+        pageLabel: "Contests",
+        iconSrc: "/icon-192x192.png",
+        title: "Upcoming Contest Reminders",
+        description:
+          "Choose an approximate 15, 30, or 60 minute reminder for Codeforces, LeetCode, AtCoder, and CodeChef contests. Alert preferences follow your account, while each browser is enabled separately.",
+      },
+      {
+        id: "installable-notification-shell",
+        label: "NEW",
+        pageHref: "/dashboard",
+        pageLabel: "App",
+        iconSrc: "/icon-192x192.png",
+        title: "Install-Ready CPBoard",
+        description:
+          "A themed app icon, web app manifest, and notification worker make CPBoard installable on supported desktop and mobile browsers, including iOS Home Screen apps.",
+      },
+      {
+        id: "notification-delivery-safeguards",
+        label: "IMPROVED",
+        pageHref: "/dashboard",
+        pageLabel: "Notifications",
+        iconSrc: "/icon-192x192.png",
+        title: "Reliable, Device-Aware Delivery",
+        description:
+          "Per-device connections, duplicate protection, temporary-failure retries, expired-reminder checks, and automatic cleanup keep alerts timely without becoming noisy.",
+      },
+      {
+        id: "stable-whats-new-release",
+        label: "FIXED",
+        pageHref: "/changelog",
+        pageLabel: "Changelog",
+        iconSrc: "/icon-192x192.png",
+        title: "Stable What’s New Prompt",
+        description:
+          "The release prompt now follows the latest published changelog entry, so unrelated deployments no longer make an already-read update appear new again.",
+      },
+    ],
+  },
+  {
     id: "2026-07-17-contests-and-personalization",
     publishedOn: "2026-07-17",
     headline: "Contests, Smarter Practice, and Weekly Recognition",
@@ -42,7 +289,7 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         iconSrc: "/favicon.ico",
         title: "Personalized Topic Practice",
         description:
-          "Your least-practiced radar topics now produce rating-matched Codeforces and LeetCode practice recommendations.",
+          "Your least-practiced radar topics now surface focused Codeforces and LeetCode practice pages, paired with a suggested Codeforces rating range.",
       },
       {
         id: "weekly-standout",
@@ -52,7 +299,7 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         iconSrc: "/favicon.ico",
         title: "Weekly Standout",
         description:
-          "The most active solver gets a weekly spotlight with activity combined across every synced platform and refreshed twice daily.",
+          "The solver with the most accepted or newly solved problems gets a weekly spotlight using verified platform activity, refreshed twice daily.",
       },
       {
         id: "cp-rankings-pagination",
@@ -82,7 +329,7 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         iconSrc: "/favicon.ico",
         title: "Contest-Focused Navigation",
         description:
-          "POTD is paused for now, and its public navigation and routes have been replaced by the contest calendar.",
+          "POTD is paused for now: its navigation entry and page route lead to the contest calendar, while the underlying daily-practice data remains intact for a future return.",
       },
     ],
   },
@@ -161,9 +408,6 @@ export const CURRENT_CHANGELOG = CHANGELOG_RELEASES[0];
 export function getActiveReleaseId(): string {
   const explicit = process.env.NEXT_PUBLIC_WHATS_NEW_RELEASE?.trim();
   if (explicit) return explicit;
-
-  const deploySha = process.env.VERCEL_GIT_COMMIT_SHA?.trim();
-  if (deploySha) return deploySha.slice(0, 12);
 
   return CURRENT_CHANGELOG.id;
 }

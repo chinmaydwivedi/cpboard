@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { after } from "next/server";
+import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { ProfileClient } from "./profile-client";
 import type { HeatmapData } from "@/types";
@@ -17,61 +18,70 @@ export default async function ProfilePage({
 
   const { username } = await params;
 
-  let viewerEmail: string | null = null;
-  try {
-    const session = await auth();
-    viewerEmail = session?.user?.email ?? null;
-  } catch {
-    viewerEmail = null;
-  }
-
-  if (!viewerEmail) {
-    redirect("/login");
-  }
-
-  const viewer = await prisma.user.findUnique({
-    where: { email: viewerEmail },
-    select: { id: true, email: true },
-  });
-
-  if (!viewer) {
-    redirect("/login");
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { username },
-    include: {
-      university: true,
+  const userPromise = prisma.user.findUnique({
+    where: { username, onboardingComplete: true },
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      avatarUrl: true,
+      createdAt: true,
+      profileViews: true,
+      university: { select: { name: true, shortName: true } },
       platformProfiles: {
+        where: { verified: true },
         orderBy: { platform: "asc" },
+        select: {
+          platform: true,
+          handle: true,
+          rating: true,
+          maxRating: true,
+          problemsSolved: true,
+          rank: true,
+          contestsCount: true,
+        },
       },
       dailyActivities: {
         where: {
           date: { gte: oneYearAgo },
         },
         orderBy: { date: "asc" },
+        select: { date: true, platform: true, submissionCount: true },
       },
     },
   });
 
+  const [session, user] = await Promise.all([
+    getCurrentSession().catch(() => null),
+    userPromise,
+  ]);
+
+  if (!session?.user?.email) redirect("/login");
+
   if (!user) notFound();
   let profileViews = user.profileViews;
 
-  if (viewer.id !== user.id) {
-    const updated = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        profileViews: {
-          increment: 1,
-        },
-      },
-      select: { profileViews: true },
+  if (session.user.id !== user.id) {
+    profileViews += 1;
+    after(async () => {
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { profileViews: { increment: 1 } },
+          select: { id: true },
+        });
+      } catch (error) {
+        console.error("[PROFILE_VIEW] Failed to increment:", error);
+      }
     });
-    profileViews = updated.profileViews;
   }
 
   const heatmapData: HeatmapData = {};
+  const verifiedPlatforms = new Set(
+    user.platformProfiles.map((profile) => profile.platform),
+  );
   for (const activity of user.dailyActivities) {
+    if (!verifiedPlatforms.has(activity.platform)) continue;
     const dateStr = activity.date.toISOString().split("T")[0];
     if (!heatmapData[dateStr]) {
       heatmapData[dateStr] = { total: 0, byPlatform: {} };
@@ -111,7 +121,7 @@ export default async function ProfilePage({
       profileVisits={profileViews}
       todayIso={todayIso}
       supportEmail="chinmaydhardwivedi@gmail.com"
-      isOwner={viewer.id === user.id}
+      isOwner={session.user.id === user.id}
     />
   );
 }

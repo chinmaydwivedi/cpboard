@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ProblemPlatform, SolutionLanguage } from "@prisma/client";
 import { toast } from "sonner";
@@ -357,6 +357,7 @@ export function PotdClient({
 }) {
   const router = useRouter();
   const [isDateTransitionPending, startDateTransition] = useTransition();
+  const commentsRequestRef = useRef<AbortController | null>(null);
   const [activeLanguage, setActiveLanguage] = useState<SolutionLanguage | null>(
     problem?.solutions[0]?.language ?? null
   );
@@ -413,28 +414,48 @@ export function PotdClient({
   const refreshComments = useCallback(async (silent = false) => {
     if (!problem) return;
     if (!silent) setRefreshingComments(true);
+    commentsRequestRef.current?.abort();
+    const controller = new AbortController();
+    commentsRequestRef.current = controller;
 
     try {
-      const res = await fetch(`/api/daily-practice/${problem.id}/comments`);
+      const res = await fetch(`/api/daily-practice/${problem.id}/comments`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       const data = await res.json();
       if (!res.ok) {
         if (!silent) toast.error(data.error || "Failed to refresh comments");
         return;
       }
       setComments(data.comments || []);
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       if (!silent) toast.error("Failed to refresh comments");
     } finally {
+      if (commentsRequestRef.current === controller) {
+        commentsRequestRef.current = null;
+      }
       if (!silent) setRefreshingComments(false);
     }
   }, [problem]);
 
   useEffect(() => {
     if (!problem) return;
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refreshComments(true);
+      }
+    };
     const timer = window.setInterval(() => {
-      void refreshComments(true);
+      refreshIfVisible();
     }, 20000);
-    return () => window.clearInterval(timer);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+      commentsRequestRef.current?.abort();
+    };
   }, [problem, refreshComments]);
 
   useEffect(() => {

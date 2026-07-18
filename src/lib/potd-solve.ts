@@ -1,8 +1,8 @@
 import type { ProblemPlatform } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { computePotdStreak, dateToDateKey, getIstDateKey } from "@/lib/potd";
+import { fetchCodeforcesApi } from "@/lib/codeforces-api";
 
-const CODEFORCES_API = "https://codeforces.com/api";
 const LEETCODE_GRAPHQL = "https://leetcode.com/graphql";
 
 const RECENT_AC_SUBMISSIONS_QUERY = `
@@ -87,7 +87,7 @@ async function hasAcceptedLeetcodeSubmission(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "User-Agent": "CPBoard/1.0 (+https://cpboard.vercel.app)",
+      "User-Agent": "CPBoard/1.0",
     },
     body: JSON.stringify({
       query: RECENT_AC_SUBMISSIONS_QUERY,
@@ -118,24 +118,12 @@ async function hasAcceptedCodeforcesSubmission(
   target: CodeforcesProblemRef,
   verifyDateKey: string
 ): Promise<boolean> {
-  const response = await fetch(
-    `${CODEFORCES_API}/user.status?handle=${encodeURIComponent(
-      handle
-    )}&from=1&count=10000`,
-    {
-      cache: "no-store",
-      headers: {
-        "User-Agent": "CPBoard/1.0 (+https://cpboard.vercel.app)",
-      },
-    }
+  const submissions = await fetchCodeforcesApi<CodeforcesSubmission[]>(
+    "user.status",
+    { handle, from: 1, count: 10_000 },
   );
 
-  if (!response.ok) return false;
-
-  const payload = await response.json();
-  if (payload?.status !== "OK" || !Array.isArray(payload?.result)) return false;
-
-  return (payload.result as CodeforcesSubmission[]).some((submission) => {
+  return submissions.some((submission) => {
     if (submission.verdict !== "OK") return false;
     const contestId = submission.problem?.contestId;
     const index = submission.problem?.index?.toUpperCase();
@@ -257,16 +245,18 @@ export async function upsertPotdSolveAndGetStreak(args: {
     },
     update: {
       solvedAt: new Date(),
+      isVerified: true,
     },
     create: {
       problemId: args.problemId,
       userId: args.userId,
       solvedDate: args.solvedDate,
+      isVerified: true,
     },
   });
 
   const solvedDates = await prisma.potdSolve.findMany({
-    where: { userId: args.userId },
+    where: { userId: args.userId, isVerified: true },
     select: { solvedDate: true },
     orderBy: { solvedDate: "asc" },
   });

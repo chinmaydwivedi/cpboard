@@ -1,51 +1,112 @@
 import { prisma } from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
 import { CPRankingsClient } from "./cp-rankings-client";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 export const revalidate = 60;
 const PAGE_SIZE = 10;
 
-async function getCPData(requestedPage: number) {
-  try {
+type RatingSummary = {
+  totalUsers: number;
+  highestRating: number;
+  averageRating: number;
+  newbie: number;
+  pupil: number;
+  specialist: number;
+  expert: number;
+  candidateMaster: number;
+  master: number;
+  internationalMasterPlus: number;
+};
+
+const getCPData = unstable_cache(
+  async (requestedPage: number) => {
+    try {
     const where = {
       platform: "CODEFORCES" as const,
       rating: { gt: 0 },
+      verified: true,
+      user: { onboardingComplete: true },
     };
-    const totalUsers = await prisma.platformProfile.count({ where });
-    const totalPages = Math.max(1, Math.ceil(totalUsers / PAGE_SIZE));
-    const page = Math.min(requestedPage, totalPages);
-
-    const [cfProfiles, topProfiles, ratingRows, ratingStats] = await Promise.all([
+    const [summaryRows, topProfiles] = await Promise.all([
+      prisma.$queryRaw<RatingSummary[]>`
+        SELECT
+          COUNT(*)::integer AS "totalUsers",
+          COALESCE(MAX("rating"), 0)::integer AS "highestRating",
+          COALESCE(ROUND(AVG("rating")), 0)::integer AS "averageRating",
+          COUNT(*) FILTER (WHERE "rating" BETWEEN 1 AND 1199)::integer AS "newbie",
+          COUNT(*) FILTER (WHERE "rating" BETWEEN 1200 AND 1399)::integer AS "pupil",
+          COUNT(*) FILTER (WHERE "rating" BETWEEN 1400 AND 1599)::integer AS "specialist",
+          COUNT(*) FILTER (WHERE "rating" BETWEEN 1600 AND 1899)::integer AS "expert",
+          COUNT(*) FILTER (WHERE "rating" BETWEEN 1900 AND 2099)::integer AS "candidateMaster",
+          COUNT(*) FILTER (WHERE "rating" BETWEEN 2100 AND 2399)::integer AS "master",
+          COUNT(*) FILTER (WHERE "rating" >= 2400)::integer AS "internationalMasterPlus"
+        FROM "PlatformProfile" AS profiles
+        INNER JOIN "User" AS users
+          ON users."id" = profiles."userId"
+          AND users."onboardingComplete" = true
+        WHERE profiles."platform" = 'CODEFORCES'::"Platform"
+          AND profiles."rating" > 0
+          AND profiles."verified" = true
+      `,
       prisma.platformProfile.findMany({
         where,
-        include: {
+        select: {
+          handle: true,
+          rating: true,
+          maxRating: true,
+          rank: true,
+          contestsCount: true,
           user: {
-            include: { university: true },
-          },
-        },
-        orderBy: [{ rating: "desc" }, { userId: "asc" }],
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
-      }),
-      prisma.platformProfile.findMany({
-        where,
-        include: {
-          user: {
-            include: { university: true },
+            select: {
+              username: true,
+              name: true,
+              avatarUrl: true,
+              university: { select: { shortName: true } },
+            },
           },
         },
         orderBy: [{ rating: "desc" }, { userId: "asc" }],
         take: 3,
       }),
-      prisma.platformProfile.findMany({
-        where,
-        select: { rating: true },
-      }),
-      prisma.platformProfile.aggregate({
-        where,
-        _avg: { rating: true },
-        _max: { rating: true },
-      }),
     ]);
+    const summary = summaryRows[0] ?? {
+      totalUsers: 0,
+      highestRating: 0,
+      averageRating: 0,
+      newbie: 0,
+      pupil: 0,
+      specialist: 0,
+      expert: 0,
+      candidateMaster: 0,
+      master: 0,
+      internationalMasterPlus: 0,
+    };
+    const totalUsers = summary.totalUsers;
+    const totalPages = Math.max(1, Math.ceil(totalUsers / PAGE_SIZE));
+    const page = Math.min(requestedPage, totalPages);
+
+    const cfProfiles = await prisma.platformProfile.findMany({
+      where,
+      select: {
+        handle: true,
+        rating: true,
+        maxRating: true,
+        rank: true,
+        contestsCount: true,
+        user: {
+          select: {
+            username: true,
+            name: true,
+            avatarUrl: true,
+            university: { select: { shortName: true } },
+          },
+        },
+      },
+      orderBy: [{ rating: "desc" }, { userId: "asc" }],
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    });
 
     const users = cfProfiles.map((p, i) => ({
       rank: (page - 1) * PAGE_SIZE + i + 1,
@@ -72,21 +133,15 @@ async function getCPData(requestedPage: number) {
       contestsCount: p.contestsCount,
     }));
 
-    const buckets = [
-      { label: "Newbie", min: 0, max: 1199 },
-      { label: "Pupil", min: 1200, max: 1399 },
-      { label: "Specialist", min: 1400, max: 1599 },
-      { label: "Expert", min: 1600, max: 1899 },
-      { label: "CM", min: 1900, max: 2099 },
-      { label: "Master", min: 2100, max: 2399 },
-      { label: "IM+", min: 2400, max: 9999 },
+    const distribution = [
+      { range: "Newbie", count: summary.newbie, minRating: 800 },
+      { range: "Pupil", count: summary.pupil, minRating: 1200 },
+      { range: "Specialist", count: summary.specialist, minRating: 1400 },
+      { range: "Expert", count: summary.expert, minRating: 1600 },
+      { range: "CM", count: summary.candidateMaster, minRating: 1900 },
+      { range: "Master", count: summary.master, minRating: 2100 },
+      { range: "IM+", count: summary.internationalMasterPlus, minRating: 2400 },
     ];
-
-    const distribution = buckets.map((b) => ({
-      range: b.label,
-      count: ratingRows.filter((p) => p.rating >= b.min && p.rating <= b.max).length,
-      minRating: b.min || 800,
-    }));
 
     return {
       users,
@@ -95,8 +150,8 @@ async function getCPData(requestedPage: number) {
       page,
       totalPages,
       totalUsers,
-      highestRating: ratingStats._max.rating ?? 0,
-      averageRating: Math.round(ratingStats._avg.rating ?? 0),
+      highestRating: summary.highestRating,
+      averageRating: summary.averageRating,
     };
   } catch {
     return {
@@ -109,8 +164,11 @@ async function getCPData(requestedPage: number) {
       highestRating: 0,
       averageRating: 0,
     };
-  }
-}
+    }
+  },
+  ["cp-rankings-data-v3"],
+  { revalidate: 60, tags: [CACHE_TAGS.cpRankings] },
+);
 
 export default async function CPRankingsPage({
   searchParams,

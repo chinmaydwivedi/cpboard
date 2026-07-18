@@ -19,7 +19,7 @@ import {
   Shield,
   CalendarDays,
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,17 +49,6 @@ export function Navbar({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
 
   const pageTourId = tourIdForPathname(pathname);
 
@@ -101,12 +90,15 @@ export function Navbar({
 
   return (
     <header data-tour="site-header" className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-      <nav className="mx-auto flex h-14 max-w-7xl items-center justify-between px-8">
+      <nav
+        className="mx-auto flex h-14 max-w-7xl items-center justify-between px-5 sm:px-8"
+        aria-label="Primary navigation"
+      >
         <Link href="/" className="flex items-center">
-          <span className="font-semibold text-[15px] tracking-tight">CP Board</span>
+          <span className="font-semibold text-[15px] tracking-tight">CPBoard</span>
         </Link>
 
-        <div className="hidden md:flex items-center gap-0.5 absolute left-1/2 -translate-x-1/2">
+        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 lg:flex">
           {links.map((link) => {
             const Icon = link.icon;
             const active = pathname === link.href || pathname.startsWith(link.href + "/");
@@ -114,6 +106,7 @@ export function Navbar({
               <Link
                 key={link.href}
                 href={link.href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors",
                   active ? "text-primary bg-primary/8" : "text-muted-foreground hover:text-foreground"
@@ -129,9 +122,10 @@ export function Navbar({
         <div className="flex items-center gap-2">
           {user && (
             <button
+              type="button"
               onClick={handleSyncAll}
               disabled={syncingAll}
-              className="hidden sm:inline-flex items-center justify-center rounded-md border border-border/60 p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors outline-none disabled:opacity-60"
+              className="hidden size-8 items-center justify-center rounded-md border border-border/60 text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 sm:inline-flex"
               aria-label="Sync all linked platforms"
               title="Sync all linked platforms"
             >
@@ -140,7 +134,7 @@ export function Navbar({
           )}
           <DropdownMenu>
             <DropdownMenuTrigger
-              className="hidden sm:inline-flex items-center justify-center rounded-md border border-border/60 p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors outline-none"
+              className="hidden size-8 items-center justify-center rounded-md border border-border/60 text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 sm:inline-flex"
               aria-label="Help and updates"
             >
               <CircleHelp className="h-4 w-4" />
@@ -149,12 +143,13 @@ export function Navbar({
               {pageTourId && (
                 <DropdownMenuItem
                   onClick={() => {
-                    const ok = runWalkthrough(pageTourId);
-                    if (!ok) {
-                      toast.message("Tour unavailable", {
-                        description: "This page has no tour targets yet.",
-                      });
-                    }
+                    void runWalkthrough(pageTourId).then((ok) => {
+                      if (!ok) {
+                        toast.message("Tour unavailable", {
+                          description: "This page has no tour targets yet.",
+                        });
+                      }
+                    });
                   }}
                 >
                   Tour this page
@@ -170,71 +165,84 @@ export function Navbar({
             </DropdownMenuContent>
           </DropdownMenu>
           {user ? (
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-2 rounded-md border border-border/60 px-2.5 py-1.5 text-[13px] font-medium hover:bg-secondary transition-colors"
+            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+              <DropdownMenuTrigger
+                aria-label={`${dropdownOpen ? "Close" : "Open"} account menu for ${user.name || user.username || "your account"}`}
+                className="flex items-center gap-2 rounded-md border border-border/60 px-2.5 py-1.5 text-[13px] font-medium transition-colors outline-none hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center text-[10px] font-semibold text-primary">
                   {(user.name || user.username || "?")[0].toUpperCase()}
                 </div>
-                <span className="hidden sm:inline">{user.name || user.username}</span>
-              </button>
-              {dropdownOpen && (
-                <div className="absolute right-0 mt-1.5 w-44 rounded-lg border border-border/60 bg-card shadow-lg py-1 z-50">
-                  <Link
-                    href="/profile"
-                    onClick={() => setDropdownOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                <span className="hidden max-w-28 truncate sm:inline">
+                  {user.name || user.username}
+                </span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem
+                  onClick={() => router.push("/profile")}
+                  className="gap-2 px-2 py-2 text-[13px]"
+                >
+                  <User className="h-3.5 w-3.5" /> Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push("/dashboard")}
+                  className="gap-2 px-2 py-2 text-[13px]"
+                >
+                  <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
+                </DropdownMenuItem>
+                {user.isAdmin && (
+                  <DropdownMenuItem
+                    onClick={() => router.push("/admin")}
+                    className="gap-2 px-2 py-2 text-[13px]"
                   >
-                    <User className="h-3.5 w-3.5" /> Profile
-                  </Link>
-                  <Link
-                    href="/dashboard"
-                    onClick={() => setDropdownOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-                  >
-                    <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
-                  </Link>
-                  {user.isAdmin && (
-                    <Link
-                      href="/admin"
-                      onClick={() => setDropdownOpen(false)}
-                      className="flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-                    >
-                      <Shield className="h-3.5 w-3.5" /> Admin
-                    </Link>
-                  )}
-                  <div className="border-t border-border/40 my-1" />
-                  <button
-                    onClick={() => signOut({ callbackUrl: "/" })}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors"
-                  >
-                    <LogOut className="h-3.5 w-3.5" /> Sign Out
-                  </button>
-                </div>
-              )}
-            </div>
+                    <Shield className="h-3.5 w-3.5" /> Admin
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => signOut({ callbackUrl: "/" })}
+                  className="gap-2 px-2 py-2 text-[13px]"
+                >
+                  <LogOut className="h-3.5 w-3.5" /> Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <Link href="/login" className="rounded-md bg-primary px-4 py-1.5 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
               Sign In
             </Link>
           )}
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden p-1.5 rounded-md hover:bg-secondary transition-colors">
-            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-navigation"
+            className="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden"
+          >
+            {mobileOpen ? (
+              <X className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Menu className="h-4 w-4" aria-hidden="true" />
+            )}
           </button>
         </div>
       </nav>
       {mobileOpen && (
-        <div className="md:hidden border-t border-border/40 bg-background px-5 py-2">
+        <div
+          id="mobile-navigation"
+          className="border-t border-border/40 bg-background px-5 py-2 lg:hidden"
+        >
           {user && (
             <button
               type="button"
+              disabled={syncingAll}
               onClick={() => {
                 setMobileOpen(false);
-                handleSyncAll();
+                void handleSyncAll();
               }}
-              className="flex items-center gap-2 w-full px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="flex w-full items-center gap-2 px-2 py-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${syncingAll ? "animate-spin" : ""}`} /> Sync all platforms
             </button>
@@ -244,8 +252,13 @@ export function Navbar({
               type="button"
               onClick={() => {
                 setMobileOpen(false);
-                const ok = runWalkthrough(pageTourId);
-                if (!ok) toast.message("Tour unavailable", { description: "This page has no tour targets yet." });
+                void runWalkthrough(pageTourId).then((ok) => {
+                  if (!ok) {
+                    toast.message("Tour unavailable", {
+                      description: "This page has no tour targets yet.",
+                    });
+                  }
+                });
               }}
               className="flex items-center gap-2 w-full px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -271,10 +284,23 @@ export function Navbar({
           </Link>
           {links.map((link) => {
             const Icon = link.icon;
+            const active =
+              pathname === link.href || pathname.startsWith(link.href + "/");
             return (
-              <Link key={link.href} href={link.href} onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2 px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors">
-                <Icon className="h-3.5 w-3.5" /> {link.label}
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileOpen(false)}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-2 py-2.5 text-[13px] font-medium transition-colors",
+                  active
+                    ? "bg-primary/8 text-primary"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                {link.label}
               </Link>
             );
           })}
@@ -298,6 +324,7 @@ export function Navbar({
                 </Link>
               )}
               <button
+                type="button"
                 onClick={() => signOut({ callbackUrl: "/" })}
                 className="flex items-center gap-2 w-full px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-destructive transition-colors"
               >

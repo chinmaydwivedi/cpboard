@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Space_Grotesk, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Navbar } from "@/components/navbar";
-import { unstable_noStore as noStore } from "next/cache";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { isAllowlistedAdminEmail, isPotdAdminEmail } from "@/lib/admin";
 import { getActiveReleaseId } from "@/lib/changelog";
+import { getCurrentSession } from "@/lib/session";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { WhatsNewModal } from "@/components/whats-new";
 import { Toaster } from "@/components/ui/sonner";
@@ -34,49 +33,66 @@ export const metadata: Metadata = {
   title: "CPBoard — University Competitive Programming Leaderboard",
   description:
     "Track your competitive programming progress across Codeforces, LeetCode, AtCoder, and CodeChef. Compete on your university's leaderboard.",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    apple: "/icon-192x192.png",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "CPBoard",
+    statusBarStyle: "black-translucent",
+  },
 };
 
-export default async function RootLayout({
+async function UserAwareHeader() {
+  try {
+    const session = await getCurrentSession();
+    if (session?.user?.email && session.user.id) {
+      const isAdmin =
+        session.role === "ADMIN" || isAllowlistedAdminEmail(session.user.email);
+      const navUser = {
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        username: session.username,
+        isAdmin,
+        isPotdAdmin: !isAdmin && isPotdAdminEmail(session.user.email),
+      };
+      return (
+        <>
+          <Navbar user={navUser} />
+          <AnalyticsTracker
+            user={{
+              id: navUser.id,
+              email: navUser.email,
+              name: navUser.name ?? null,
+            }}
+          />
+        </>
+      );
+    }
+  } catch {
+    // auth not configured yet
+  }
+
+  return (
+    <>
+      <Navbar user={null} />
+      <AnalyticsTracker user={null} />
+    </>
+  );
+}
+
+function HeaderFallback() {
+  return <Navbar user={null} />;
+}
+
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const activeReleaseId = getActiveReleaseId();
-  let navUser:
-    | {
-        id: string;
-        email: string;
-        name?: string | null;
-        username?: string;
-        isAdmin: boolean;
-        isPotdAdmin: boolean;
-      }
-    | null = null;
-
-  try {
-    const session = await auth();
-    if (session?.user?.email) {
-      noStore();
-      const dbUser = await prisma.user.findUnique({
-        where: { email: session.user.email },
-        select: { id: true, email: true, name: true, username: true, role: true },
-      });
-      if (dbUser) {
-        const isAdmin =
-          dbUser.role === "ADMIN" || isAllowlistedAdminEmail(dbUser.email);
-        navUser = {
-          id: dbUser.id,
-          email: dbUser.email,
-          name: dbUser.name,
-          username: dbUser.username,
-          isAdmin,
-          isPotdAdmin: !isAdmin && isPotdAdminEmail(dbUser.email),
-        };
-      }
-    }
-  } catch {
-    // auth not configured yet
-  }
 
   return (
     <html
@@ -88,18 +104,9 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <TooltipProvider>
-            <Navbar user={navUser} />
-            <AnalyticsTracker
-              user={
-                navUser
-                  ? {
-                      id: navUser.id,
-                      email: navUser.email,
-                      name: navUser.name ?? null,
-                    }
-                  : null
-              }
-            />
+            <Suspense fallback={<HeaderFallback />}>
+              <UserAwareHeader />
+            </Suspense>
             <WhatsNewModal releaseId={activeReleaseId} />
             <WalkthroughHost />
             <main className="flex-1">{children}</main>

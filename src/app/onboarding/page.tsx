@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { OnboardingClient } from "./onboarding-client";
 
 export default async function OnboardingPage() {
   let session;
   try {
-    session = await auth();
+    session = await getCurrentSession();
   } catch {
     redirect("/login");
   }
@@ -15,7 +15,22 @@ export default async function OnboardingPage() {
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    include: { university: true },
+    select: {
+      username: true,
+      name: true,
+      onboardingComplete: true,
+      ownershipVerificationRequired: true,
+      university: { select: { name: true } },
+      platformProfiles: {
+        select: {
+          platform: true,
+          handle: true,
+          verified: true,
+          verifiedAt: true,
+          ownershipKey: true,
+        },
+      },
+    },
   });
 
   if (!user) redirect("/login");
@@ -27,6 +42,14 @@ export default async function OnboardingPage() {
       defaultUsername={user.username}
       defaultName={user.name || ""}
       universityName={user.university.name}
+      ownershipVerificationRequired={user.ownershipVerificationRequired}
+      initialProfiles={user.platformProfiles.map((profile) => ({
+        platform: profile.platform,
+        handle: profile.handle,
+        ownershipVerified: Boolean(
+          profile.verified && profile.verifiedAt && profile.ownershipKey,
+        ),
+      }))}
     />
   );
 }

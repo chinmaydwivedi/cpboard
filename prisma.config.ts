@@ -4,13 +4,19 @@
 import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
 
+// Prisma Client uses DATABASE_URL from schema.prisma at runtime. Prefer a
+// direct connection for CLI migration commands (especially with Neon), while
+// keeping DATABASE_URL as a backwards-compatible fallback for local setups.
+const prismaCliUrl = process.env.DIRECT_URL?.trim() || env("DATABASE_URL");
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    seed: "npx tsx prisma/seed.ts",
   },
   engine: "classic",
   datasource: {
-    url: env("DATABASE_URL"),
+    url: prismaCliUrl,
   },
 });

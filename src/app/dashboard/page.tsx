@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { DashboardClient } from "./dashboard-client";
 import { fetchCombinedTopicRadar } from "@/lib/topic-radar";
@@ -10,7 +10,7 @@ export default async function DashboardPage() {
   const oneYearAgo = new Date(todayUtc.getTime() - 365 * 24 * 60 * 60 * 1000);
   let session;
   try {
-    session = await auth();
+    session = await getCurrentSession();
   } catch {
     redirect("/login");
   }
@@ -21,10 +21,29 @@ export default async function DashboardPage() {
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    include: {
-      university: true,
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      email: true,
+      avatarUrl: true,
+      onboardingComplete: true,
+      ownershipVerificationRequired: true,
+      university: { select: { name: true, shortName: true } },
       platformProfiles: {
         orderBy: { platform: "asc" },
+        select: {
+          platform: true,
+          handle: true,
+          rating: true,
+          maxRating: true,
+          problemsSolved: true,
+          rank: true,
+          contestsCount: true,
+          lastSynced: true,
+          verified: true,
+          verifiedAt: true,
+        },
       },
       dailyActivities: {
         where: {
@@ -33,10 +52,14 @@ export default async function DashboardPage() {
           },
         },
         orderBy: { date: "asc" },
+        select: { date: true, platform: true, submissionCount: true },
       },
-      syncLogs: {
-        orderBy: { syncedAt: "desc" },
-        take: 10,
+      notificationPreference: {
+        select: {
+          leaderAlerts: true,
+          contestAlerts: true,
+          contestLeadMinutes: true,
+        },
       },
     },
   });
@@ -45,7 +68,13 @@ export default async function DashboardPage() {
   if (!user.onboardingComplete) redirect("/onboarding");
 
   const heatmapData: Record<string, { total: number; byPlatform: Record<string, number> }> = {};
+  const verifiedPlatforms = new Set(
+    user.platformProfiles
+      .filter((profile) => profile.verified)
+      .map((profile) => profile.platform),
+  );
   for (const activity of user.dailyActivities) {
+    if (!verifiedPlatforms.has(activity.platform)) continue;
     const dateStr = activity.date.toISOString().split("T")[0];
     if (!heatmapData[dateStr]) {
       heatmapData[dateStr] = { total: 0, byPlatform: {} };
@@ -55,9 +84,13 @@ export default async function DashboardPage() {
   }
 
   const codeforcesHandle =
-    user.platformProfiles.find((p) => p.platform === "CODEFORCES")?.handle || null;
+    user.platformProfiles.find(
+      (profile) => profile.platform === "CODEFORCES" && profile.verified,
+    )?.handle || null;
   const leetcodeHandle =
-    user.platformProfiles.find((p) => p.platform === "LEETCODE")?.handle || null;
+    user.platformProfiles.find(
+      (profile) => profile.platform === "LEETCODE" && profile.verified,
+    )?.handle || null;
   const topicRadar = await fetchCombinedTopicRadar({
     codeforcesHandle,
     leetcodeUsername: leetcodeHandle,
@@ -87,17 +120,29 @@ export default async function DashboardPage() {
         contestsCount: p.contestsCount,
         lastSynced: p.lastSynced?.toISOString() || null,
         verified: p.verified,
+        verifiedAt: p.verifiedAt?.toISOString() || null,
       }))}
       heatmapData={heatmapData}
       todayIso={todayIso}
       topicRadar={topicRadar}
       topicHandles={{ codeforces: codeforcesHandle, leetcode: leetcodeHandle }}
-      recentSyncs={user.syncLogs.map((s) => ({
-        platform: s.platform,
-        status: s.status,
-        error: s.error,
-        syncedAt: s.syncedAt.toISOString(),
-      }))}
+      vapidPublicKey={
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY &&
+        process.env.VAPID_PRIVATE_KEY &&
+        process.env.VAPID_SUBJECT
+          ? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+          : null
+      }
+      notificationPreferences={{
+        leaderAlerts: user.notificationPreference?.leaderAlerts ?? true,
+        contestAlerts: user.notificationPreference?.contestAlerts ?? true,
+        contestLeadMinutes: ([15, 30, 60].includes(
+          user.notificationPreference?.contestLeadMinutes ?? 30,
+        )
+          ? user.notificationPreference?.contestLeadMinutes ?? 30
+          : 30) as 15 | 30 | 60,
+      }}
+      ownershipVerificationRequired={user.ownershipVerificationRequired}
     />
   );
 }

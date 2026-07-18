@@ -149,28 +149,34 @@ export function Heatmap({ data, todayIso }: { data: HeatmapData; todayIso?: stri
 
   return (
     <div className="rounded-lg border border-border bg-card/50 p-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1">
             <button
+              type="button"
               onClick={() => canGoPrev && setYear(year - 1)}
               disabled={!canGoPrev}
-              className="p-0.5 rounded hover:bg-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label={`Show ${year - 1} activity`}
+              title={`Show ${year - 1}`}
+              className="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-30"
             >
-              <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+              <ChevronLeft className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             </button>
             <span className="text-sm font-bold font-mono min-w-[3rem] text-center">{year}</span>
             <button
+              type="button"
               onClick={() => canGoNext && setYear(year + 1)}
               disabled={!canGoNext}
-              className="p-0.5 rounded hover:bg-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label={`Show ${year + 1} activity`}
+              title={`Show ${year + 1}`}
+              className="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-30"
             >
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 sm:w-auto sm:justify-start sm:gap-4">
           <div className="flex items-center gap-1.5">
             <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">
@@ -187,7 +193,13 @@ export function Heatmap({ data, todayIso }: { data: HeatmapData; todayIso?: stri
       </div>
 
       <div className="overflow-x-auto pb-1">
-        <svg width={totalW} height={totalH + 20} className="block">
+        <svg
+          width={totalW}
+          height={totalH + 20}
+          className="block"
+          role="img"
+          aria-label={`${year} coding activity heatmap with ${stats.activeDays} active days and a ${stats.currentStreak} day current streak`}
+        >
           {months.map((m, i) => (
             <text
               key={i}

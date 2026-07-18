@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import NextImage from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,17 +37,19 @@ export function LeaderboardTable({
   const [sortAsc, setSortAsc] = useState(true);
   const [page, setPage] = useState(1);
 
-  const sorted = [...entries].sort((a, b) => {
-    let av: number, bv: number;
-    if (sortKey === "rank") { av = a.rank; bv = b.rank; }
-    else if (sortKey === "totalSolved") { av = a.totalSolved; bv = b.totalSolved; }
-    else if (sortKey === "bestRating") { av = a.bestRating; bv = b.bestRating; }
-    else {
-      av = a.platforms.find((p) => p.platform === sortKey as Platform)?.problemsSolved || 0;
-      bv = b.platforms.find((p) => p.platform === sortKey as Platform)?.problemsSolved || 0;
-    }
-    return sortAsc ? av - bv : bv - av;
-  });
+  const sorted = useMemo(() => {
+    return [...entries].sort((a, b) => {
+      let av: number, bv: number;
+      if (sortKey === "rank") { av = a.rank; bv = b.rank; }
+      else if (sortKey === "totalSolved") { av = a.totalSolved; bv = b.totalSolved; }
+      else if (sortKey === "bestRating") { av = a.bestRating; bv = b.bestRating; }
+      else {
+        av = a.platforms.find((p) => p.platform === sortKey as Platform)?.problemsSolved || 0;
+        bv = b.platforms.find((p) => p.platform === sortKey as Platform)?.problemsSolved || 0;
+      }
+      return sortAsc ? av - bv : bv - av;
+    });
+  }, [entries, sortAsc, sortKey]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -110,9 +113,16 @@ export function LeaderboardTable({
                 <td className="px-4 py-3 font-mono text-sm">{rankDisplay(entry.rank)}</td>
                 <td className="px-4 py-3">
                   <Link href={`/u/${entry.username}`} className="flex items-center gap-2.5 hover:text-primary transition-colors">
-                    <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-[11px] font-semibold text-primary shrink-0 overflow-hidden">
+                    <div className="relative h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-[11px] font-semibold text-primary shrink-0 overflow-hidden">
                       {entry.avatarUrl ? (
-                        <img src={entry.avatarUrl} alt="" className="h-full w-full object-cover" />
+                        <NextImage
+                          src={entry.avatarUrl}
+                          alt=""
+                          fill
+                          sizes="28px"
+                          unoptimized
+                          className="object-cover"
+                        />
                       ) : (
                         (entry.name || entry.username)[0].toUpperCase()
                       )}

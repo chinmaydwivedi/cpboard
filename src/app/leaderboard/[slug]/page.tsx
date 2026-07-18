@@ -22,13 +22,17 @@ export default async function UniversityLeaderboardPage({
       include: {
         users: {
           include: {
-            platformProfiles: true,
+            platformProfiles: { where: { verified: true } },
             potdSolves: {
+              where: { isVerified: true },
               select: { solvedDate: true },
               orderBy: { solvedDate: "asc" },
             },
           },
-          where: { platformProfiles: { some: {} } },
+          where: {
+            onboardingComplete: true,
+            platformProfiles: { some: { verified: true } },
+          },
         },
       },
     });

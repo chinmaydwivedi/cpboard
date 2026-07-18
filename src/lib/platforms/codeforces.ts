@@ -1,7 +1,5 @@
 import type { PlatformData } from "@/types";
-import { format } from "date-fns";
-
-const BASE = "https://codeforces.com/api";
+import { fetchCodeforcesApi } from "@/lib/codeforces-api";
 
 type CFSubmission = {
   id: number;
@@ -20,57 +18,47 @@ type CFUser = {
 };
 
 export async function fetchCodeforcesData(handle: string): Promise<PlatformData> {
-  const [userRes, subsRes] = await Promise.all([
-    fetch(`${BASE}/user.info?handles=${encodeURIComponent(handle)}`, { next: { revalidate: 3600 } }),
-    fetch(`${BASE}/user.status?handle=${encodeURIComponent(handle)}&from=1&count=10000`, {
-      next: { revalidate: 3600 },
+  const [users, submissions, ratingHistory] = await Promise.all([
+    fetchCodeforcesApi<CFUser[]>("user.info", { handles: handle }),
+    fetchCodeforcesApi<CFSubmission[]>("user.status", {
+      handle,
+      from: 1,
+      count: 10_000,
     }),
+    fetchCodeforcesApi<unknown[]>("user.rating", { handle }).catch(() => []),
   ]);
 
-  if (!userRes.ok) throw new Error(`Codeforces user.info failed: ${userRes.status}`);
-  if (!subsRes.ok) throw new Error(`Codeforces user.status failed: ${subsRes.status}`);
-
-  const userData = await userRes.json();
-  const subsData = await subsRes.json();
-
-  if (userData.status !== "OK" || !userData.result?.length) {
+  if (!users.length) {
     throw new Error("Codeforces user not found");
   }
 
-  const user: CFUser = userData.result[0];
-  const submissions: CFSubmission[] = subsData.result || [];
+  const user = users[0];
 
-  const solvedSet = new Set<string>();
+  const firstAcceptedAt = new Map<string, number>();
   const dailyActivity: Record<string, number> = {};
 
   for (const sub of submissions) {
-    const dateStr = format(new Date(sub.creationTimeSeconds * 1000), "yyyy-MM-dd");
-    dailyActivity[dateStr] = (dailyActivity[dateStr] || 0) + 1;
-
     if (sub.verdict === "OK") {
-      solvedSet.add(`${sub.problem.contestId}-${sub.problem.index}`);
+      const problemKey = `${sub.problem.contestId}-${sub.problem.index}`;
+      const previous = firstAcceptedAt.get(problemKey);
+      if (previous === undefined || sub.creationTimeSeconds < previous) {
+        firstAcceptedAt.set(problemKey, sub.creationTimeSeconds);
+      }
     }
   }
 
-  const ratingRes = await fetch(
-    `${BASE}/user.rating?handle=${encodeURIComponent(handle)}`,
-    { next: { revalidate: 3600 } }
-  );
-  let contestsCount = 0;
-  if (ratingRes.ok) {
-    const ratingData = await ratingRes.json();
-    if (ratingData.status === "OK") {
-      contestsCount = ratingData.result?.length || 0;
-    }
+  for (const acceptedAt of firstAcceptedAt.values()) {
+    const dateStr = new Date(acceptedAt * 1000).toISOString().slice(0, 10);
+    dailyActivity[dateStr] = (dailyActivity[dateStr] || 0) + 1;
   }
 
   return {
     handle: user.handle,
     rating: user.rating || 0,
     maxRating: user.maxRating || 0,
-    problemsSolved: solvedSet.size,
+    problemsSolved: firstAcceptedAt.size,
     rank: user.rank || null,
-    contestsCount,
+    contestsCount: ratingHistory.length,
     dailyActivity,
   };
 }

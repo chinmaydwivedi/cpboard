@@ -1,19 +1,35 @@
 import type { PlatformProfile } from "@prisma/client";
 
-export function computeTotalSolved(profiles: PlatformProfile[]): number {
+type ScoreProfile = Pick<
+  PlatformProfile,
+  "platform" | "rating" | "maxRating" | "problemsSolved"
+>;
+
+export function computeTotalSolved(profiles: ScoreProfile[]): number {
   return profiles.reduce((sum, p) => sum + p.problemsSolved, 0);
 }
 
-export function computeBestRating(profiles: PlatformProfile[]): number {
+export function computeBestRating(profiles: ScoreProfile[]): number {
   const leetcode = profiles.find((p) => p.platform === "LEETCODE");
   if (!leetcode) return 0;
   return leetcode.rating || leetcode.maxRating || 0;
 }
 
-export function computeCompositeScore(profiles: PlatformProfile[]): number {
+export function computeCompositeScore(profiles: ScoreProfile[]): number {
   const totalSolved = computeTotalSolved(profiles);
   const bestRating = computeBestRating(profiles);
   return totalSolved * 10 + bestRating;
+}
+
+export function compareLeaderboardScores(
+  a: { totalSolved: number; bestRating: number; username: string },
+  b: { totalSolved: number; bestRating: number; username: string },
+): number {
+  return (
+    b.totalSolved - a.totalSolved ||
+    b.bestRating - a.bestRating ||
+    (a.username < b.username ? -1 : a.username > b.username ? 1 : 0)
+  );
 }
 
 export function getCodeforcesRankColor(rating: number): string {

@@ -1,0 +1,38 @@
+name: Notification cycle
+
+on:
+  schedule:
+    - cron: "3,13,23,33,43,53 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpboard-notification-cycle
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Trigger leaderboard and contest alerts
+        env:
+          CPBOARD_CRON_SECRET: ${{ secrets.CPBOARD_CRON_SECRET }}
+          CPBOARD_PRODUCTION_URL: ${{ vars.CPBOARD_PRODUCTION_URL }}
+        run: |
+          test -n "$CPBOARD_CRON_SECRET"
+          test -n "$CPBOARD_PRODUCTION_URL"
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 2 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 70 \
+            --header "Authorization: Bearer $CPBOARD_CRON_SECRET" \
+            --output /tmp/cpboard-notification-result.json \
+            "$CPBOARD_PRODUCTION_URL/api/cron/notifications"
+          jq -c '{success, skipped, reason, sourceAvailable}' /tmp/cpboard-notification-result.json

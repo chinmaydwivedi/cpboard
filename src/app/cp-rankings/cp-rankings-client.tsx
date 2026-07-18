@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -11,7 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RatingDistributionChart } from "@/components/rating-chart";
 import { getCodeforcesRankColor, getCodeforcesRankTitle } from "@/lib/scoring";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,17 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+
+const RatingDistributionChart = dynamic(
+  () =>
+    import("@/components/rating-chart").then(
+      (module) => module.RatingDistributionChart,
+    ),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 w-full animate-pulse rounded-md bg-secondary/30" />,
+  },
+);
 
 type CPUser = {
   rank: number;
@@ -108,9 +119,7 @@ export function CPRankingsClient({
           </div>
 
           <div className="relative mx-auto grid max-w-2xl gap-3 sm:grid-cols-3 sm:items-end">
-            {[topUsers[1], topUsers[0], topUsers[2]]
-              .filter((user): user is CPUser => Boolean(user))
-              .map((user) => {
+            {topUsers.map((user) => {
               const rankStyle = {
                 1: {
                   ring: "border-amber-300/70 bg-amber-400/10",
@@ -135,9 +144,19 @@ export function CPRankingsClient({
               return (
                 <article
                   key={user.username}
-                  className={cn("flex flex-col items-center", user.rank === 1 && "sm:-translate-y-4")}
+                  className={cn(
+                    "flex flex-col items-center",
+                    user.rank === 1 &&
+                      "sm:col-start-2 sm:row-start-1 sm:-translate-y-4",
+                    user.rank === 2 && "sm:col-start-1 sm:row-start-1",
+                    user.rank === 3 && "sm:col-start-3 sm:row-start-1",
+                  )}
                 >
-                  <Crown className={cn("mb-2 size-5", rankStyle.crown)} fill="currentColor" />
+                  <Crown
+                    className={cn("mb-2 size-5", rankStyle.crown)}
+                    fill="currentColor"
+                    aria-hidden="true"
+                  />
                   <Link href={`/u/${user.username}`} className="group flex flex-col items-center">
                     <Avatar className={cn("size-20 border-2 shadow-lg", rankStyle.ring)}>
                       {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
@@ -170,7 +189,7 @@ export function CPRankingsClient({
                   </div>
                 </article>
               );
-              })}
+            })}
           </div>
         </section>
       )}
@@ -244,18 +263,19 @@ export function CPRankingsClient({
             {totalPages > 1 && (
               <nav
                 aria-label="CP rankings pagination"
-                className="flex items-center justify-between gap-4 border-t border-border/60 px-4 py-3"
+                className="flex flex-col gap-3 border-t border-border/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               >
-                <p className="text-xs text-muted-foreground">
+                <p className="text-center text-xs text-muted-foreground sm:text-left">
                   Page {page} of {totalPages}
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                   <Link
                     href={page > 2 ? `/cp-rankings?page=${page - 1}` : "/cp-rankings"}
                     aria-disabled={page === 1}
                     tabIndex={page === 1 ? -1 : undefined}
                     className={cn(
                       buttonVariants({ variant: "outline", size: "sm" }),
+                      "h-9 w-full sm:h-7 sm:w-auto",
                       page === 1 && "pointer-events-none opacity-50",
                     )}
                   >
@@ -268,6 +288,7 @@ export function CPRankingsClient({
                     tabIndex={page === totalPages ? -1 : undefined}
                     className={cn(
                       buttonVariants({ variant: "outline", size: "sm" }),
+                      "h-9 w-full sm:h-7 sm:w-auto",
                       page === totalPages && "pointer-events-none opacity-50",
                     )}
                   >

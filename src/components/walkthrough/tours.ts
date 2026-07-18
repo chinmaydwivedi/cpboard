@@ -238,7 +238,17 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       element: SEL("dash-platforms"),
       popover: {
         title: "Platforms",
-        description: "Enter a handle or profile URL, then sync to pull rating and solved counts. Data refreshes from each site.",
+        description:
+          "New CPBoard accounts use a five-minute Codeforces or LeetCode submission challenge before the first sync or a handle change. Pre-existing accounts keep direct linking, and linked profiles refresh normally.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("dash-notifications"),
+      popover: {
+        title: "Browser notifications",
+        description:
+          "Enable this browser for global leader changes and contest reminders. Alert preferences follow your account, while each browser is connected separately.",
         side: "top",
       },
     },

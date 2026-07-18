@@ -44,7 +44,7 @@ export function RatingDistributionChart({
               borderRadius: 8,
               fontSize: 12,
             }}
-            formatter={(value, _name, props: any) => [
+            formatter={(value, _name, props) => [
               `${value} users`,
               getCodeforcesRankTitle(props?.payload?.minRating ?? 0),
             ]}

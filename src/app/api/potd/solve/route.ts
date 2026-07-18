@@ -36,7 +36,10 @@ export async function POST(req: NextRequest) {
       id: true,
       university: { select: { shortName: true } },
       platformProfiles: {
-        where: { platform: { in: ["LEETCODE", "CODEFORCES"] } },
+        where: {
+          platform: { in: ["LEETCODE", "CODEFORCES"] },
+          verified: true,
+        },
         select: { platform: true, handle: true },
       },
     },

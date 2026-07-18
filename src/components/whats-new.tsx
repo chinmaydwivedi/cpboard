@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CURRENT_CHANGELOG } from "@/lib/changelog";
+import { CHANGELOG_RELEASES, CURRENT_CHANGELOG } from "@/lib/changelog";
 import { cn } from "@/lib/utils";
 
 const OPEN_EVENT = "cpboard:open-whats-new";
@@ -47,6 +47,10 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const release =
+    CHANGELOG_RELEASES.find((candidate) => candidate.id === releaseId) ??
+    CURRENT_CHANGELOG;
+  const activeReleaseId = release.id;
 
   useEffect(() => {
     const handleOpen = () => setOpen(true);
@@ -58,15 +62,15 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
     if (pathname === "/changelog") return;
 
     const seenRelease = localStorage.getItem(SEEN_RELEASE_KEY);
-    if (seenRelease === releaseId) return;
+    if (seenRelease === activeReleaseId) return;
     if (Date.now() < getSnoozeUntil()) return;
 
     const timer = window.setTimeout(() => setOpen(true), 320);
     return () => window.clearTimeout(timer);
-  }, [pathname, releaseId]);
+  }, [activeReleaseId, pathname]);
 
   const markSeenAndClose = () => {
-    localStorage.setItem(SEEN_RELEASE_KEY, releaseId);
+    localStorage.setItem(SEEN_RELEASE_KEY, activeReleaseId);
     localStorage.setItem(SEEN_AT_KEY, new Date().toISOString());
     window.sessionStorage.removeItem(SNOOZE_UNTIL_KEY);
     setOpen(false);
@@ -78,7 +82,7 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
   };
 
   const openChangelog = () => {
-    localStorage.setItem(SEEN_RELEASE_KEY, releaseId);
+    localStorage.setItem(SEEN_RELEASE_KEY, activeReleaseId);
     localStorage.setItem(SEEN_AT_KEY, new Date().toISOString());
     window.sessionStorage.removeItem(SNOOZE_UNTIL_KEY);
     setOpen(false);
@@ -91,7 +95,7 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
       onOpenChange={(next) => {
         if (!next) {
           const seenRelease = localStorage.getItem(SEEN_RELEASE_KEY);
-          if (seenRelease !== releaseId) {
+          if (seenRelease !== activeReleaseId) {
             setSnooze();
           }
         }
@@ -123,15 +127,15 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
 
           <DialogHeader className="gap-3">
             <DialogTitle className="text-2xl sm:text-3xl leading-tight">
-              {CURRENT_CHANGELOG.headline}
+              {release.headline}
             </DialogTitle>
             <DialogDescription className="text-sm sm:text-[15px] max-w-[36rem] leading-relaxed">
-              {CURRENT_CHANGELOG.summary}
+              {release.summary}
             </DialogDescription>
           </DialogHeader>
 
           <div className="mt-5 space-y-2.5">
-            {CURRENT_CHANGELOG.highlights.slice(0, 3).map((item) => (
+            {release.highlights.slice(0, 3).map((item) => (
               <div
                 key={item.id}
                 className="rounded-lg border border-border/50 bg-background/65 p-3.5"
@@ -177,13 +181,13 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
                 </div>
               </div>
             ))}
-            {CURRENT_CHANGELOG.highlights.length > 3 && (
+            {release.highlights.length > 3 && (
               <button
                 type="button"
                 onClick={openChangelog}
                 className="w-full rounded-lg border border-dashed border-border/60 px-3.5 py-2.5 text-left text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
               >
-                +{CURRENT_CHANGELOG.highlights.length - 3} more updates in the full changelog
+                +{release.highlights.length - 3} more updates in the full changelog
               </button>
             )}
           </div>

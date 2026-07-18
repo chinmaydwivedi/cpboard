@@ -5,15 +5,18 @@ A multi-university competitive programming leaderboard that aggregates profiles 
 ## Features
 
 - **Multi-platform tracking** — Link Codeforces, LeetCode, AtCoder, and CodeChef profiles
+- **Handle ownership verification** — Five-minute submission challenges protect Codeforces and LeetCode links for accounts created after the rollout; pre-existing accounts remain exempt
 - **University leaderboards** — Per-university and global rankings by problems solved and ratings
 - **Cross-platform heatmap** — GitHub-style contribution grid aggregating activity across all platforms
 - **CP Rankings** — Live Codeforces podium, full-board statistics, rating distribution, and paginated rankings
 - **Contest calendar** — Upcoming Codeforces, LeetCode, AtCoder, and CodeChef rounds with local times and calendar export
+- **Browser notifications** — Opt-in alerts when the global leader changes and when contests are approaching, with per-account preferences
 - **Personalized practice** — Topic-wise Codeforces and LeetCode recommendations based on profile activity
-- **Weekly standout** — Cross-platform recognition for the most active solver each week
-- **University email verification** — Students sign in with magic links to their `.edu` email
+- **Weekly standout** — Cross-platform recognition based on accepted/newly solved activity each week
+- **University email verification** — Students sign in with magic links sent to a registered university email domain
 - **Multi-university support** — Admin-configurable email domains for any university
-- **Auto-sync** — Cron jobs refresh verified platform profiles twice daily
+- **Scheduled updates** — Profiles refresh twice daily, while contest reminders and leader checks run every ten minutes
+- **Optimized update pipeline** — Bounded platform concurrency, bulk activity writes, precise cache invalidation, and deferred telemetry
 
 ## Tech Stack
 
@@ -21,10 +24,10 @@ A multi-university competitive programming leaderboard that aggregates profiles 
 |-------|-----------|
 | Framework | Next.js 16 (App Router, Server Components) |
 | Database | PostgreSQL (Neon serverless) + Prisma ORM |
-| Auth | NextAuth.js v5 + Resend (email magic links) |
+| Auth | NextAuth.js v5 + Nodemailer over SMTP (email magic links) |
 | UI | Tailwind CSS v4 + shadcn/ui + Framer Motion |
 | Charts | Recharts |
-| Deployment | Vercel (with Cron Jobs) |
+| Deployment | Vercel + GitHub Actions schedules |
 
 ## Getting Started
 
@@ -32,14 +35,13 @@ A multi-university competitive programming leaderboard that aggregates profiles 
 
 - Node.js 20+
 - PostgreSQL database (recommended: [Neon](https://neon.tech) for free serverless Postgres)
-- [Resend](https://resend.com) account (for sending magic link emails)
+- SMTP credentials (Brevo is configured by default) for magic-link emails
 
-### 1. Clone and Install
+### 1. Clone
 
 ```bash
 git clone <your-repo-url>
-cd "UNIVERSITY LEADERBOARD"
-npm install
+cd cpboard
 ```
 
 ### 2. Configure Environment
@@ -53,18 +55,47 @@ cp .env.example .env
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string |
+| `DIRECT_URL` | Recommended unpooled Neon connection string for Prisma migrations; omit locally to fall back to `DATABASE_URL` |
 | `AUTH_SECRET` | Random secret (`openssl rand -base64 32`) |
-| `AUTH_RESEND_KEY` | Your Resend API key |
+| `SMTP_USER` | SMTP username for magic-link email |
+| `SMTP_PASSWORD` | SMTP password for magic-link email |
 | `EMAIL_FROM` | Sender email for magic links |
 | `CRON_SECRET` | Secret for cron job auth |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Public VAPID key used by the browser to subscribe to push alerts |
+| `VAPID_PRIVATE_KEY` | Private VAPID key used only by the server to send push alerts |
+| `VAPID_SUBJECT` | Contact URI for the push sender, such as `mailto:admin@example.com` |
+| `NEXT_PUBLIC_WHATS_NEW_RELEASE` | Optional release-ID override for the What’s New prompt; normally leave blank |
 
-### 3. Set Up Database
+### 3. Install Dependencies
+
+Prisma reads the database URL while its client is generated during install, so
+create `.env` first as shown above.
 
 ```bash
-npx prisma migrate dev --name init
+npm install
 ```
 
-### 4. Seed Initial University
+### 4. Configure Browser Notifications
+
+Generate a VAPID key pair once for each environment:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Add the generated public and private keys to the matching environment variables above, and set `VAPID_SUBJECT` to a valid `mailto:` or `https:` contact URI. Never expose `VAPID_PRIVATE_KEY` to the browser or commit it to source control.
+
+Notifications are opt-in. Each browser must be enabled separately from the Dashboard, while alert types and contest lead time follow the signed-in account. Contest reminders are checked every ten minutes, so the selected 15, 30, or 60 minute lead time is approximate. Web Push requires HTTPS in production; `localhost` is supported for local development. On iOS, users must add CPBoard to the Home Screen before enabling notifications.
+
+The notification worker retries temporary delivery failures, removes expired browser subscriptions, suppresses duplicate alerts, and ignores contest reminders that arrive after a contest starts. If a contest is rescheduled, its new start time can produce a corrected reminder.
+
+### 5. Set Up Database
+
+```bash
+npx prisma migrate deploy
+```
+
+### 6. Seed Initial University
 
 To add your university, either use the admin panel or run:
 
@@ -83,7 +114,7 @@ Add a `University` record with:
 - `shortName`: "PESU"
 - `emailDomain`: "pesu.pes.edu"
 
-### 5. Run Development Server
+### 7. Run Development Server
 
 ```bash
 npm run dev
@@ -104,17 +135,24 @@ src/
 │   ├── contests/                   # Cross-platform contest calendar
 │   ├── u/[username]/               # Public user profiles
 │   ├── admin/                      # University management
-│   └── api/                        # Auth, sync, cron routes
+│   └── api/                        # Auth, sync, notification, and cron routes
 ├── components/
 │   ├── heatmap.tsx                 # Cross-platform activity heatmap
 │   ├── leaderboard-table.tsx       # Sortable leaderboard with animations
+│   ├── notification-settings.tsx   # Per-browser push setup and account preferences
+│   ├── platform-verification-dialog.tsx # CF/LC ownership challenge flow
 │   ├── rating-chart.tsx            # CF rating distribution chart
 │   ├── topic-recommendations.tsx   # Personalized topic practice suggestions
 │   └── navbar.tsx                  # Top navigation bar
 ├── lib/
 │   ├── platforms/                  # CF, LC, AC, CC API fetchers
 │   ├── auth.ts                     # NextAuth configuration
+│   ├── cache-tags.ts               # Shared cache invalidation keys
+│   ├── codeforces-api.ts            # Shared official-API rate-limit queue
+│   ├── platform-verification.ts     # Submission challenge issuance and checks
+│   ├── push-notifications.ts       # Push delivery, contest reminders, and leader alerts
 │   ├── scoring.ts                  # Leaderboard scoring logic
+│   ├── session.ts                  # Request-scoped session deduplication
 │   └── prisma.ts                   # Database client
 └── types/                          # TypeScript type definitions
 ```
@@ -123,17 +161,44 @@ src/
 
 1. Push to GitHub
 2. Import into [Vercel](https://vercel.com)
-3. Add environment variables in Vercel project settings
+3. Add the database, auth, SMTP, cron, and three VAPID variables from `.env.example` to Vercel project settings; use Neon’s pooled URL for `DATABASE_URL` and its unpooled URL for `DIRECT_URL`
 4. Add a Neon PostgreSQL database (or any Postgres)
-5. Run `npx prisma migrate deploy` in the build command
-6. The cron job (`/api/cron/sync-all`) runs twice daily automatically via `vercel.json`
+5. Keep the production build command as `npm run build`
+6. Before promoting a production deployment, create a Neon restore point, run `npx prisma migrate deploy` with `DIRECT_URL`, and then promote the already-built deployment
+7. Copy the same `CRON_SECRET` into the GitHub Actions secret `CPBOARD_CRON_SECRET`, and set the repository variable `CPBOARD_PRODUCTION_URL` to the stable production origin without a trailing slash
+8. The included GitHub Actions workflows call `/api/cron/sync-all` twice daily and `/api/cron/notifications` every ten minutes
+
+The schedules live in GitHub Actions because this project currently deploys on Vercel Hobby, whose cron jobs cannot run every ten minutes. The notification job refreshes the saved contest schedule, sends due reminders, and checks for a new global leaderboard leader; database delivery records and job leases prevent duplicates if a workflow is delayed or retried.
+
+`vercel.json` pins server functions to Singapore (`sin1`) to match the current Neon `ap-southeast-1` database. Change both together if the database moves regions.
+
+After deployment, sign in on an HTTPS browser, enable notifications from the Dashboard, and use **Send test** to verify the complete production delivery path. Browser permission and subscriptions are device-specific; alert-type preferences belong to the signed-in account.
+
+## Update and Performance Model
+
+- User-triggered platform syncs always request fresh upstream data and apply activity history in one database transaction.
+- “Sync all” uses bounded concurrency plus database-backed per-profile leases, so parallel clicks and serverless instances cannot create an uncontrolled request burst.
+- Landing stats, global rankings, CP rankings, and topic radar results use explicit caches. Successful syncs invalidate only the affected data, while cron refreshes use stale-while-revalidate behavior.
+- Slow upstream requests have deadlines so one provider cannot hold an entire sync or scheduled invocation open indefinitely.
+- Analytics, profile-view counters, tours, and large chart libraries stay outside the critical response or initial JavaScript path where possible.
+- Codeforces work uses both a bounded in-process queue and a Neon-backed request lease. Sync, verification, POTD, and recommendation requests therefore respect the provider spacing across serverless instances.
+- Failed scheduled syncs receive exponential backoff, while successful profiles rotate by last-attempt time so one broken handle cannot starve the rest of the queue.
+
+## Handle Ownership Verification
+
+- New CPBoard accounts linking or changing a **Codeforces** handle receive a random beginner problem. The user submits intentionally non-compiling code, and CPBoard checks for a new public `COMPILATION_ERROR` submission during the five-minute window.
+- New CPBoard accounts linking or changing a **LeetCode** handle receive a beginner-friendly free problem. The user solves or resubmits it, and CPBoard checks for a new public Accepted submission during the same window.
+- Challenges record the recent submission IDs present at the start, so an older solve cannot be replayed. Pending candidates stay outside `PlatformProfile`, rankings, heatmaps, and public profiles until verification succeeds.
+- Concurrent checks for the same unclaimed handle receive different problems, so another user cannot reserve the handle and block its real owner. The first valid proof claims it atomically.
+- CPBoard checks only public submission metadata: account handle, submission ID, assigned problem, verdict, and timestamp. It does not fetch or store source code.
+- Every account registered before this rollout is marked exempt and keeps direct Codeforces/LeetCode link and sync actions. Accounts created afterward must pass the challenge before a protected link enters public rankings, heatmaps, recommendations, POTD checks, or background syncs.
 
 ## Platform APIs Used
 
 | Platform | API | Rate Limit |
 |----------|-----|-----------|
 | Codeforces | [Official API](https://codeforces.com/apiHelp) — `user.info`, `user.status`, `user.rating` | 1 req/2s |
-| LeetCode | GraphQL at `leetcode.com/graphql` — `matchedUser`, `userContestRanking`, `userCalendar` | ~2 req/s |
+| LeetCode | GraphQL at `leetcode.com/graphql` — `matchedUser`, `recentAcSubmissionList`, `userContestRanking`, `userCalendar` | Undocumented; requests use deadlines and user-triggered checks |
 | AtCoder | [Kenkoooo API](https://github.com/kenkoooo/AtCoderProblems) — `v3/user/submissions` | 1 req/s |
 | CodeChef | [CP Rating API](https://cp-rating-api.vercel.app) — `/codechef/{username}` | Generous |
 

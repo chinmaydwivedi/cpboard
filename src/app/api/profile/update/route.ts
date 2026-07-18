@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { revalidateTag } from "next/cache";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 export async function PATCH(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.email) {
+  const userId = session?.user?.id;
+  const currentUsername = session?.username;
+  if (!userId || !currentUsername) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: { id: true, username: true },
-  });
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
   const body = await req.json();
@@ -34,8 +30,11 @@ export async function PATCH(req: NextRequest) {
     if (clean.length < 3 || clean.length > 30) {
       return NextResponse.json({ error: "Username must be 3-30 characters (letters, numbers, _ , -)" }, { status: 400 });
     }
-    if (clean !== user.username) {
-      const existing = await prisma.user.findUnique({ where: { username: clean } });
+    if (clean !== currentUsername) {
+      const existing = await prisma.user.findUnique({
+        where: { username: clean },
+        select: { id: true },
+      });
       if (existing) {
         return NextResponse.json({ error: "Username already taken" }, { status: 409 });
       }
@@ -48,10 +47,11 @@ export async function PATCH(req: NextRequest) {
   }
 
   const updated = await prisma.user.update({
-    where: { id: user.id },
+    where: { id: userId },
     data: updates,
     select: { username: true, name: true },
   });
+  revalidateTag(CACHE_TAGS.leaderboard, { expire: 0 });
 
   return NextResponse.json(updated);
 }

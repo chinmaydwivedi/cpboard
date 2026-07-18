@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Award, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -32,18 +32,23 @@ export function LeaderboardClient({
 }) {
   const [search, setSearch] = useState("");
   const [uniFilter, setUniFilter] = useState("all");
+  const deferredSearch = useDeferredValue(search.trim().toLowerCase());
 
-  const filtered = entries.filter((e) => {
-    const matchesSearch =
-      !search ||
-      e.username.toLowerCase().includes(search.toLowerCase()) ||
-      (e.name || "").toLowerCase().includes(search.toLowerCase());
-    const matchesUni =
-      uniFilter === "all" || e.universityShortName === uniFilter;
-    return matchesSearch && matchesUni;
-  });
-
-  const reranked = filtered.map((e, i) => ({ ...e, rank: i + 1 }));
+  const reranked = useMemo(
+    () =>
+      entries
+        .filter((entry) => {
+          const matchesSearch =
+            !deferredSearch ||
+            entry.username.toLowerCase().includes(deferredSearch) ||
+            (entry.name || "").toLowerCase().includes(deferredSearch);
+          const matchesUniversity =
+            uniFilter === "all" || entry.universityShortName === uniFilter;
+          return matchesSearch && matchesUniversity;
+        })
+        .map((entry, index) => ({ ...entry, rank: index + 1 })),
+    [deferredSearch, entries, uniFilter],
+  );
 
   return (
     <div>
@@ -93,7 +98,7 @@ export function LeaderboardClient({
                       </span>
                     ))}
                   <span className="text-[9px] text-muted-foreground/70">
-                    Across all synced platforms · refreshed twice daily
+                    Across verified platforms · refreshed twice daily
                   </span>
                 </div>
               </div>
@@ -103,7 +108,7 @@ export function LeaderboardClient({
                 <p className="font-mono text-xl font-bold text-foreground">
                   {weeklyLeader.submissionCount}
                 </p>
-                <p className="text-[10px] text-muted-foreground">submissions this week</p>
+                <p className="text-[10px] text-muted-foreground">problems this week</p>
               </div>
               <Link
                 href={`/u/${weeklyLeader.username}`}

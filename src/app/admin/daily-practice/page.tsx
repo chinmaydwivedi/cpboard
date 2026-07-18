@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { hasPotdAdminAccess, hasAdminAccess } from "@/lib/admin";
 import { dateToDateKey, getIstDateKey } from "@/lib/potd";
@@ -8,7 +8,7 @@ import { DailyPracticeAdminClient } from "./daily-practice-admin-client";
 export default async function AdminDailyPracticePage() {
   let session;
   try {
-    session = await auth();
+    session = await getCurrentSession();
   } catch {
     redirect("/login");
   }

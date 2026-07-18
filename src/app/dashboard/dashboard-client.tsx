@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import NextImage from "next/image";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Input } from "@/components/ui/input";
@@ -9,14 +10,24 @@ import { Badge } from "@/components/ui/badge";
 import { Heatmap } from "@/components/heatmap";
 import { TopicRadarChart } from "@/components/topic-radar-chart";
 import { TopicRecommendations } from "@/components/topic-recommendations";
+import {
+  PlatformVerificationDialog,
+  type PlatformVerificationData,
+  type VerificationPlatform,
+} from "@/components/platform-verification-dialog";
+import {
+  NotificationSettings,
+  type NotificationPreferences,
+} from "@/components/notification-settings";
 import { PLATFORM_LABELS } from "@/types";
 import type { HeatmapData } from "@/types";
 import type { TopicRadarPoint } from "@/lib/topic-radar";
-import type { Platform, SyncStatus } from "@prisma/client";
+import type { Platform } from "@prisma/client";
+import { extractHandle } from "@/lib/parse-handle";
 import { toast } from "sonner";
 import {
   RefreshCw, CheckCircle2, LogOut, Trash2, AlertTriangle,
-  Pencil, Camera, X, Check, User as UserIcon,
+  Pencil, Camera, X, Check, ShieldCheck,
 } from "lucide-react";
 
 type ProfileData = {
@@ -29,13 +40,7 @@ type ProfileData = {
   contestsCount: number;
   lastSynced: string | null;
   verified: boolean;
-};
-
-type SyncLogEntry = {
-  platform: Platform;
-  status: SyncStatus;
-  error: string | null;
-  syncedAt: string;
+  verifiedAt: string | null;
 };
 
 const ALL_PLATFORMS: Platform[] = ["CODEFORCES", "LEETCODE", "ATCODER", "CODECHEF"];
@@ -85,7 +90,9 @@ export function DashboardClient({
   todayIso,
   topicRadar,
   topicHandles,
-  recentSyncs,
+  vapidPublicKey,
+  notificationPreferences,
+  ownershipVerificationRequired,
 }: {
   user: {
     id: string;
@@ -100,7 +107,9 @@ export function DashboardClient({
   todayIso: string;
   topicRadar: TopicRadarPoint[];
   topicHandles: { codeforces: string | null; leetcode: string | null };
-  recentSyncs: SyncLogEntry[];
+  vapidPublicKey: string | null;
+  notificationPreferences: NotificationPreferences;
+  ownershipVerificationRequired: boolean;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -110,9 +119,15 @@ export function DashboardClient({
     return map;
   });
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
+  const [verificationTarget, setVerificationTarget] = useState<{
+    platform: VerificationPlatform;
+    handle: string;
+  } | null>(null);
   const [currentProfiles, setCurrentProfiles] = useState(profiles);
+  const previousProfilesRef = useRef(profiles);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [removingPlatform, setRemovingPlatform] = useState<Platform | null>(null);
 
   const [editingProfile, setEditingProfile] = useState(false);
   const [editName, setEditName] = useState(user.name || "");
@@ -123,12 +138,38 @@ export function DashboardClient({
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  const totalSolved = currentProfiles.reduce((s, p) => s + p.problemsSolved, 0);
+  useEffect(() => {
+    const previousByPlatform = new Map(
+      previousProfilesRef.current.map((profile) => [profile.platform, profile]),
+    );
 
-  const leetcodeProfile = currentProfiles.find((p) => p.platform === "LEETCODE");
+    setCurrentProfiles(profiles);
+    setHandles((current) => {
+      const next = { ...current };
+      for (const profile of profiles) {
+        const previousHandle = previousByPlatform.get(profile.platform)?.handle;
+        if (!current[profile.platform] || current[profile.platform] === previousHandle) {
+          next[profile.platform] = profile.handle;
+        }
+      }
+      return next;
+    });
+    previousProfilesRef.current = profiles;
+  }, [profiles]);
+
+  const verifiedProfiles = currentProfiles.filter((profile) => profile.verified);
+  const totalSolved = verifiedProfiles.reduce(
+    (sum, profile) => sum + profile.problemsSolved,
+    0,
+  );
+
+  const leetcodeProfile = verifiedProfiles.find(
+    (profile) => profile.platform === "LEETCODE",
+  );
   const leetcodeRating = leetcodeProfile?.rating || leetcodeProfile?.maxRating || 0;
   const codeforcesRating =
-    currentProfiles.find((p) => p.platform === "CODEFORCES")?.rating || 0;
+    verifiedProfiles.find((profile) => profile.platform === "CODEFORCES")
+      ?.rating || 0;
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -165,10 +206,9 @@ export function DashboardClient({
       if (!res.ok) { toast.error(data.error || "Upload failed"); return; }
       setAvatarUrl(data.avatarUrl);
       toast.success("Avatar updated");
-      router.refresh();
     } catch { toast.error("Upload failed"); }
     finally { setUploadingAvatar(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
-  }, [router]);
+  }, []);
 
   const handleRemoveAvatar = async () => {
     setUploadingAvatar(true);
@@ -177,7 +217,6 @@ export function DashboardClient({
       if (!res.ok) { toast.error("Failed to remove avatar"); return; }
       setAvatarUrl(null);
       toast.success("Avatar removed");
-      router.refresh();
     } catch { toast.error("Network error"); }
     finally { setUploadingAvatar(false); }
   };
@@ -185,6 +224,9 @@ export function DashboardClient({
   const handleSync = async (platform: Platform) => {
     const handle = handles[platform]?.trim();
     if (!handle) { toast.error("Enter a handle first"); return; }
+    const existingProfile = currentProfiles.find(
+      (profile) => profile.platform === platform,
+    );
     setSyncing((prev) => ({ ...prev, [platform]: true }));
     try {
       const res = await fetch("/api/platforms/sync", {
@@ -207,6 +249,7 @@ export function DashboardClient({
           contestsCount: data.data.contestsCount || 0,
           lastSynced: new Date().toISOString(),
           verified: true,
+          verifiedAt: existingProfile?.verifiedAt ?? null,
         };
         if (idx >= 0) { const c = [...prev]; c[idx] = updated; return c; }
         return [...prev, updated];
@@ -215,6 +258,98 @@ export function DashboardClient({
       router.refresh();
     } catch { toast.error("Network error"); }
     finally { setSyncing((prev) => ({ ...prev, [platform]: false })); }
+  };
+
+  const handlePlatformAction = (platform: Platform, profile?: ProfileData) => {
+    const handle = handles[platform]?.trim();
+    if (!handle) {
+      toast.error("Enter a handle first");
+      return;
+    }
+
+    if (
+      ownershipVerificationRequired &&
+      (platform === "CODEFORCES" || platform === "LEETCODE")
+    ) {
+      const parsedHandle = extractHandle(platform, handle).toLowerCase();
+      const isVerifiedHandle =
+        Boolean(profile?.verified) &&
+        Boolean(profile?.verifiedAt) &&
+        profile?.handle.toLowerCase() === parsedHandle;
+      if (!isVerifiedHandle) {
+        setVerificationTarget({ platform, handle });
+        return;
+      }
+    }
+
+    void handleSync(platform);
+  };
+
+  const handleOwnershipVerified = (
+    platform: VerificationPlatform,
+    data: PlatformVerificationData,
+  ) => {
+    const verifiedAt = new Date().toISOString();
+    setCurrentProfiles((previous) => {
+      const updated: ProfileData = {
+        platform,
+        handle: data.handle,
+        rating: data.rating,
+        maxRating: data.maxRating,
+        problemsSolved: data.problemsSolved,
+        rank: data.rank,
+        contestsCount: data.contestsCount,
+        lastSynced: data.statsPending ? null : verifiedAt,
+        verified: true,
+        verifiedAt,
+      };
+      const index = previous.findIndex((profile) => profile.platform === platform);
+      if (index < 0) return [...previous, updated];
+      const next = [...previous];
+      next[index] = updated;
+      return next;
+    });
+    setHandles((previous) => ({ ...previous, [platform]: data.handle }));
+    toast.success(`${PLATFORM_LABELS[platform]} ownership verified`);
+    router.refresh();
+  };
+
+  const handleRemovePlatform = async (platform: Platform) => {
+    if (
+      !confirm(
+        `Remove your ${PLATFORM_LABELS[platform]} profile from CPBoard?`,
+      )
+    ) {
+      return;
+    }
+
+    setRemovingPlatform(platform);
+    try {
+      const response = await fetch("/api/platforms/sync", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast.error(payload.error || "Failed to remove profile");
+        return;
+      }
+      setCurrentProfiles((previous) =>
+        previous.filter((profile) => profile.platform !== platform),
+      );
+      setHandles((previous) => {
+        const next = { ...previous };
+        delete next[platform];
+        return next;
+      });
+      toast.success(`${PLATFORM_LABELS[platform]} profile removed`);
+      router.refresh();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setRemovingPlatform(null);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -230,38 +365,87 @@ export function DashboardClient({
     }
   };
 
+  const heatmapSection = useMemo(
+    () => <Heatmap data={heatmapData} todayIso={todayIso} />,
+    [heatmapData, todayIso],
+  );
+  const radarSection = useMemo(
+    () => (
+      <TopicRadarChart
+        data={topicRadar}
+        codeforcesHandle={topicHandles.codeforces}
+        leetcodeHandle={topicHandles.leetcode}
+      />
+    ),
+    [topicHandles.codeforces, topicHandles.leetcode, topicRadar],
+  );
+  const recommendationsSection = useMemo(
+    () => (
+      <TopicRecommendations
+        topics={topicRadar}
+        codeforcesRating={codeforcesRating}
+      />
+    ),
+    [codeforcesRating, topicRadar],
+  );
+
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
 
-      <div className="flex items-center justify-between mb-8" data-tour="dash-profile">
-        <div className="flex items-center gap-4">
+      <div
+        className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        data-tour="dash-profile"
+      >
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <div className="relative group">
-            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary shrink-0 overflow-hidden">
+            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary">
               {avatarUrl ? (
-                <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                <NextImage
+                  src={avatarUrl}
+                  alt={`${currentName || currentUsername}'s avatar`}
+                  fill
+                  sizes="56px"
+                  unoptimized
+                  className="object-cover"
+                />
               ) : (
                 (currentName || currentUsername)[0].toUpperCase()
               )}
             </div>
             <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingAvatar}
-              className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+              aria-label="Change profile photo"
+              title="Change profile photo"
+              className="absolute -bottom-1 -right-1 flex size-7 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Camera className="h-4 w-4 text-white" />
+              <Camera className="size-3.5" aria-hidden="true" />
             </button>
           </div>
-          <div>
+          <div className="min-w-0">
             {!editingProfile ? (
               <>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold tracking-tight">{currentName || currentUsername}</h1>
-                  <button onClick={() => { setEditingProfile(true); setEditName(currentName); setEditUsername(currentUsername); }} className="text-muted-foreground hover:text-foreground transition-colors">
-                    <Pencil className="h-3.5 w-3.5" />
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <h1 className="min-w-0 break-words text-xl font-bold tracking-tight">
+                    {currentName || currentUsername}
+                  </h1>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingProfile(true);
+                      setEditName(currentName);
+                      setEditUsername(currentUsername);
+                    }}
+                    aria-label="Edit profile name and username"
+                    title="Edit profile"
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <Pencil className="size-3.5" aria-hidden="true" />
                   </button>
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <p className="flex flex-wrap items-center gap-x-1 text-sm text-muted-foreground">
                   @{currentUsername} · <Badge variant="outline" className="font-mono text-[10px]">{user.university.shortName}</Badge>
                 </p>
                 {avatarUrl && (
@@ -271,19 +455,21 @@ export function DashboardClient({
                 )}
               </>
             ) : (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-col gap-2">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
                   <Input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder="Display name"
-                    className="h-8 text-[13px] w-40"
+                    aria-label="Display name"
+                    className="h-8 w-full text-[13px] sm:w-40"
                   />
                   <Input
                     value={editUsername}
                     onChange={(e) => setEditUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
                     placeholder="Username"
-                    className="h-8 text-[13px] w-36 font-mono"
+                    aria-label="Username"
+                    className="h-8 w-full font-mono text-[13px] sm:w-36"
                   />
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -298,7 +484,12 @@ export function DashboardClient({
             )}
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => signOut({ callbackUrl: "/" })} className="text-[13px] gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => signOut({ callbackUrl: "/" })}
+          className="w-full gap-1.5 text-[13px] sm:w-auto"
+        >
           <LogOut className="h-3.5 w-3.5" /> Sign Out
         </Button>
       </div>
@@ -307,7 +498,7 @@ export function DashboardClient({
         {[
           { label: "Problems Solved", value: totalSolved.toString() },
           { label: "LC Rating", value: leetcodeRating > 0 ? leetcodeRating.toString() : "—" },
-          { label: "Platforms", value: `${currentProfiles.length}/4` },
+          { label: "Platforms", value: `${verifiedProfiles.length}/4` },
         ].map((stat) => (
           <div key={stat.label} className="rounded-lg border border-border/40 p-4">
             <p className="text-[11px] text-muted-foreground font-medium">{stat.label}</p>
@@ -317,46 +508,112 @@ export function DashboardClient({
       </div>
 
       <div className="mb-6" data-tour="dash-heatmap">
-        <Heatmap data={heatmapData} todayIso={todayIso} />
+        {heatmapSection}
       </div>
 
       <div className="mb-6" data-tour="dash-topic-radar">
-        <TopicRadarChart
-          data={topicRadar}
-          codeforcesHandle={topicHandles.codeforces}
-          leetcodeHandle={topicHandles.leetcode}
-        />
+        {radarSection}
       </div>
 
       <div className="mb-6">
-        <TopicRecommendations
-          topics={topicRadar}
-          codeforcesRating={codeforcesRating}
-        />
+        {recommendationsSection}
       </div>
 
       <p className="text-[11px] text-muted-foreground font-medium mb-3">Platforms</p>
       <div className="grid gap-3 sm:grid-cols-2 mb-8" data-tour="dash-platforms">
         {ALL_PLATFORMS.map((platform) => {
           const profile = currentProfiles.find((p) => p.platform === platform);
+          const ownershipPlatform =
+            platform === "CODEFORCES" || platform === "LEETCODE";
+          const requiresOwnershipCheck =
+            ownershipPlatform && ownershipVerificationRequired;
+          const enteredHandle = handles[platform]?.trim() || "";
+          const enteredCanonical = enteredHandle
+            ? extractHandle(platform, enteredHandle).toLowerCase()
+            : "";
+          const ownershipVerified =
+            ownershipPlatform &&
+            Boolean(profile?.verified) &&
+            Boolean(profile?.verifiedAt) &&
+            profile?.handle.toLowerCase() === enteredCanonical;
+          const actionLabel = requiresOwnershipCheck && !ownershipVerified
+            ? profile?.verifiedAt
+              ? "Verify new handle"
+              : "Verify handle"
+            : "Sync stats";
           return (
             <div key={platform} className={`rounded-lg border p-4 ${platformColor[platform]}`}>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between gap-3 mb-3">
                 <span className={`text-sm font-semibold ${platformAccent[platform]}`}>
                   {PLATFORM_LABELS[platform]}
                 </span>
-                {profile?.verified && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
+                <div className="flex items-center gap-1.5">
+                  <Badge
+                    variant="outline"
+                    className="gap-1 font-mono text-[9px] text-muted-foreground"
+                  >
+                    {requiresOwnershipCheck && ownershipVerified ? (
+                      <CheckCircle2 className="size-3 text-primary" aria-hidden="true" />
+                    ) : requiresOwnershipCheck ? (
+                      <ShieldCheck className="size-3" aria-hidden="true" />
+                    ) : profile ? (
+                      <CheckCircle2 className="size-3 text-primary" aria-hidden="true" />
+                    ) : null}
+                    {requiresOwnershipCheck && ownershipVerified
+                      ? "Verified"
+                      : requiresOwnershipCheck
+                        ? "Verification needed"
+                        : profile
+                          ? "Linked"
+                          : "Not linked"}
+                  </Badge>
+                  {profile && (
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      aria-label={`Remove ${PLATFORM_LABELS[platform]} profile`}
+                      title={`Remove ${PLATFORM_LABELS[platform]} profile`}
+                      disabled={
+                        removingPlatform === platform || Boolean(syncing[platform])
+                      }
+                      onClick={() => void handleRemovePlatform(platform)}
+                    >
+                      <Trash2 className="size-3" aria-hidden="true" />
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-2 mb-3">
                 <Input
+                  id={`platform-handle-${platform.toLowerCase()}`}
+                  aria-label={`${PLATFORM_LABELS[platform]} handle or profile URL`}
                   placeholder="Handle or profile URL"
                   value={handles[platform] || ""}
                   onChange={(e) => setHandles((p) => ({ ...p, [platform]: e.target.value }))}
                   className="h-8 text-[13px]"
                 />
-                <Button size="sm" variant="outline" onClick={() => handleSync(platform)} disabled={syncing[platform]} className="h-8 px-3">
-                  <RefreshCw className={`h-3 w-3 ${syncing[platform] ? "animate-spin" : ""}`} />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handlePlatformAction(platform, profile)}
+                  disabled={syncing[platform] || removingPlatform === platform}
+                  aria-label={`${actionLabel} for ${PLATFORM_LABELS[platform]}`}
+                  className="h-8 gap-1.5 px-3"
+                >
+                  {requiresOwnershipCheck && !ownershipVerified ? (
+                    <ShieldCheck className="size-3" aria-hidden="true" />
+                  ) : (
+                    <RefreshCw
+                      className={`size-3 ${syncing[platform] ? "animate-spin" : ""}`}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className="hidden text-[11px] sm:inline">
+                    {requiresOwnershipCheck && !ownershipVerified ? "Verify" : "Sync"}
+                  </span>
                 </Button>
               </div>
 
@@ -381,6 +638,25 @@ export function DashboardClient({
         })}
       </div>
 
+      {verificationTarget && (
+        <PlatformVerificationDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setVerificationTarget(null);
+          }}
+          platform={verificationTarget.platform}
+          handle={verificationTarget.handle}
+          onVerified={(data) =>
+            handleOwnershipVerified(verificationTarget.platform, data)
+          }
+        />
+      )}
+
+      <NotificationSettings
+        vapidPublicKey={vapidPublicKey}
+        initialPreferences={notificationPreferences}
+      />
+
       <div className="rounded-lg border border-destructive/20 p-5" data-tour="dash-danger">
         <div className="flex items-center gap-2 mb-1">
           <AlertTriangle className="h-4 w-4 text-destructive" />
@@ -394,12 +670,23 @@ export function DashboardClient({
             <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Account
           </Button>
         ) : (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
             <p className="text-xs text-destructive font-medium">Are you sure?</p>
-            <Button size="sm" variant="destructive" onClick={handleDeleteAccount} disabled={deleting}>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              className="w-full sm:w-auto"
+            >
               {deleting ? "Deleting..." : "Yes, delete my account"}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowDeleteConfirm(false)}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
           </div>

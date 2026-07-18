@@ -1,5 +1,4 @@
 import type { PlatformData } from "@/types";
-import { format } from "date-fns";
 
 const KENKOOOO_API = "https://kenkoooo.com/atcoder/atcoder-api";
 const ATCODER_BASE = "https://atcoder.jp";
@@ -45,6 +44,7 @@ async function fetchAtCoderProfilePage(handle: string): Promise<string | null> {
   try {
     const res = await fetch(`${ATCODER_BASE}/users/${encodeURIComponent(handle)}?lang=en`, {
       cache: "no-store",
+      signal: AbortSignal.timeout(12_000),
       headers: {
         "User-Agent": "Mozilla/5.0",
         Accept: "text/html,application/xhtml+xml",
@@ -87,6 +87,7 @@ async function fetchAtCoderHistory(handle: string): Promise<AtCoderHistoryEntry[
   try {
     const res = await fetch(`${ATCODER_BASE}/users/${encodeURIComponent(handle)}/history/json`, {
       cache: "no-store",
+      signal: AbortSignal.timeout(12_000),
       headers: {
         "User-Agent": "Mozilla/5.0",
         Accept: "application/json, text/plain, */*",
@@ -103,6 +104,7 @@ async function fetchAtCoderHistory(handle: string): Promise<AtCoderHistoryEntry[
 async function fetchAllSubmissions(handle: string): Promise<AtCoderSubmission[]> {
   const all: AtCoderSubmission[] = [];
   let fromSecond = 0;
+  const signal = AbortSignal.timeout(35_000);
 
   for (let i = 0; i < 30; i++) {
     let res: Response;
@@ -111,6 +113,7 @@ async function fetchAllSubmissions(handle: string): Promise<AtCoderSubmission[]>
         `${KENKOOOO_API}/v3/user/submissions?user=${encodeURIComponent(handle)}&from_second=${fromSecond}`,
         {
           cache: "no-store",
+          signal,
           headers: {
             "User-Agent": "Mozilla/5.0",
             Accept: "application/json, text/plain, */*",
@@ -166,18 +169,24 @@ export async function fetchAtcoderData(handle: string): Promise<PlatformData> {
   const maxRatingFromHistory =
     ratedRatings.length > 0 ? Math.max(...ratedRatings) : 0;
 
-  const solvedSet = new Set<string>();
+  const firstAcceptedAt = new Map<string, number>();
   const dailyActivity: Record<string, number> = {};
   const contestSet = new Set<string>();
 
   for (const sub of submissions) {
-    const dateStr = format(new Date(sub.epoch_second * 1000), "yyyy-MM-dd");
-    dailyActivity[dateStr] = (dailyActivity[dateStr] || 0) + 1;
     contestSet.add(sub.contest_id);
 
     if (sub.result === "AC") {
-      solvedSet.add(sub.problem_id);
+      const previous = firstAcceptedAt.get(sub.problem_id);
+      if (previous === undefined || sub.epoch_second < previous) {
+        firstAcceptedAt.set(sub.problem_id, sub.epoch_second);
+      }
     }
+  }
+
+  for (const acceptedAt of firstAcceptedAt.values()) {
+    const dateStr = new Date(acceptedAt * 1000).toISOString().slice(0, 10);
+    dailyActivity[dateStr] = (dailyActivity[dateStr] || 0) + 1;
   }
 
   const rating = ratingFromHistory || profileStats.rating || 0;
@@ -189,7 +198,7 @@ export async function fetchAtcoderData(handle: string): Promise<PlatformData> {
     handle,
     rating,
     maxRating,
-    problemsSolved: solvedSet.size,
+    problemsSolved: firstAcceptedAt.size,
     rank: profileStats.rank,
     contestsCount,
     dailyActivity,

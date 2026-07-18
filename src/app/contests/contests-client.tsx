@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { CalendarPlus, Clock3, ExternalLink, Radio } from "lucide-react";
 import type { Contest } from "@/lib/contests";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,7 @@ function googleCalendarUrl(contest: Contest) {
 export function ContestsClient({ contests }: { contests: Contest[] }) {
   const platforms = useMemo(() => [...new Set(contests.map((contest) => contest.platform))], [contests]);
   const [selected, setSelected] = useState<string[]>(platforms);
+  const previousPlatformsRef = useRef(platforms);
   const [now, setNow] = useState(0);
   const mounted = useSyncExternalStore(
     () => () => undefined,
@@ -69,6 +70,24 @@ export function ContestsClient({ contests }: { contests: Contest[] }) {
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    const previousPlatforms = new Set(previousPlatformsRef.current);
+    const availablePlatforms = new Set(platforms);
+    setSelected((current) => {
+      const next = current.filter((platform) => availablePlatforms.has(platform));
+      for (const platform of platforms) {
+        if (!previousPlatforms.has(platform) && !next.includes(platform)) {
+          next.push(platform);
+        }
+      }
+      return next.length === current.length &&
+        next.every((platform, index) => platform === current[index])
+        ? current
+        : next;
+    });
+    previousPlatformsRef.current = platforms;
+  }, [platforms]);
 
   const visible = useMemo(
     () => contests.filter((contest) => selected.includes(contest.platform)),

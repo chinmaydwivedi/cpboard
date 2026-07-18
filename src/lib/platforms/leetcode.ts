@@ -33,16 +33,54 @@ query getUserCalendar($username: String!, $year: Int) {
   }
 }`;
 
+const RECENT_ACCEPTED_QUERY = `
+query getRecentAccepted($username: String!, $limit: Int) {
+  recentAcSubmissionList(username: $username, limit: $limit) {
+    id
+    titleSlug
+    timestamp
+  }
+}`;
+
+type RecentAcceptedSubmission = {
+  titleSlug?: string;
+  timestamp?: string;
+};
+
 export async function fetchLeetcodeData(handle: string): Promise<PlatformData> {
-  const profileRes = await fetch(LEETCODE_GRAPHQL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query: USER_PROFILE_QUERY,
-      variables: { username: handle },
+  const signal = AbortSignal.timeout(15_000);
+  const [profileRes, calendarRes, recentAcceptedRes] = await Promise.all([
+    fetch(LEETCODE_GRAPHQL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: USER_PROFILE_QUERY,
+        variables: { username: handle },
+      }),
+      cache: "no-store",
+      signal,
     }),
-    next: { revalidate: 3600 },
-  });
+    fetch(LEETCODE_GRAPHQL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: CALENDAR_QUERY,
+        variables: { username: handle },
+      }),
+      cache: "no-store",
+      signal,
+    }),
+    fetch(LEETCODE_GRAPHQL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: RECENT_ACCEPTED_QUERY,
+        variables: { username: handle, limit: 100 },
+      }),
+      cache: "no-store",
+      signal,
+    }).catch(() => null),
+  ]);
 
   if (!profileRes.ok) throw new Error(`LeetCode profile fetch failed: ${profileRes.status}`);
 
@@ -59,16 +97,6 @@ export async function fetchLeetcodeData(handle: string): Promise<PlatformData> {
   const contestInfo = profileData.data?.userContestRanking;
   const rating = Math.round(contestInfo?.rating || 0);
   const contestsCount = contestInfo?.attendedContestsCount || 0;
-
-  const calendarRes = await fetch(LEETCODE_GRAPHQL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query: CALENDAR_QUERY,
-      variables: { username: handle },
-    }),
-    next: { revalidate: 3600 },
-  });
 
   const dailyActivity: Record<string, number> = {};
 
@@ -87,6 +115,39 @@ export async function fetchLeetcodeData(handle: string): Promise<PlatformData> {
         }
       } catch {
         // calendar parse error, ignore
+      }
+    }
+  }
+
+  // LeetCode's calendar counts every attempt. Replace the current rolling
+  // week with recent accepted problems so wrong answers and repeated attempts
+  // do not inflate the weekly standout. The public API caps this list, making
+  // the result a conservative count for unusually active users.
+  const recentCutoff = new Date();
+  recentCutoff.setUTCHours(0, 0, 0, 0);
+  recentCutoff.setUTCDate(recentCutoff.getUTCDate() - 7);
+  for (let offset = 0; offset <= 7; offset += 1) {
+    const date = new Date(recentCutoff);
+    date.setUTCDate(date.getUTCDate() + offset);
+    dailyActivity[date.toISOString().slice(0, 10)] = 0;
+  }
+
+  if (recentAcceptedRes?.ok) {
+    const recentPayload = await recentAcceptedRes.json().catch(() => null);
+    const recent = recentPayload?.data?.recentAcSubmissionList;
+    if (Array.isArray(recent)) {
+      const seenProblems = new Set<string>();
+      for (const submission of recent as RecentAcceptedSubmission[]) {
+        const slug = submission.titleSlug?.trim().toLowerCase();
+        const timestamp = Number(submission.timestamp);
+        if (!slug || seenProblems.has(slug) || !Number.isFinite(timestamp)) {
+          continue;
+        }
+        const acceptedAt = new Date(timestamp * 1000);
+        if (acceptedAt < recentCutoff) continue;
+        seenProblems.add(slug);
+        const dateStr = acceptedAt.toISOString().slice(0, 10);
+        dailyActivity[dateStr] = (dailyActivity[dateStr] || 0) + 1;
       }
     }
   }

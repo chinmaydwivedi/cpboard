@@ -17,10 +17,10 @@ const LEETCODE_SLUGS: Record<string, string> = {
 };
 
 function difficultyBand(rating: number) {
-  if (rating <= 0) return { label: "Beginner", range: "800–1000" };
+  if (rating <= 0) return { label: "Starter range", range: "800–1000" };
   const lower = Math.max(800, Math.floor((rating - 200) / 100) * 100);
   const upper = Math.max(lower + 200, Math.ceil((rating + 100) / 100) * 100);
-  return { label: "Rating matched", range: `${lower}–${upper}` };
+  return { label: "Based on your CF rating", range: `${lower}–${upper}` };
 }
 
 function codeforcesTag(topic: string) {
@@ -59,7 +59,7 @@ export function TopicRecommendations({
           <div className="flex items-center gap-2">
             <Target className="size-4 text-primary" />
             <h2 className="text-sm font-semibold">Recommended next</h2>
-            <Badge variant="outline" className="text-[10px]">Example</Badge>
+            <Badge variant="outline" className="text-[10px]">Topic signal</Badge>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
             Based on your least-practiced topics across Codeforces and LeetCode.
@@ -67,7 +67,7 @@ export function TopicRecommendations({
         </div>
         <div className="text-right">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Suggested difficulty
+            Suggested CF range
           </p>
           <p className="mt-0.5 font-mono text-xs font-medium">
             {difficulty.range} · {difficulty.label}
@@ -95,9 +95,9 @@ export function TopicRecommendations({
                       {topic.count} solved
                     </Badge>
                   </div>
-                  <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 flex items-start gap-1 text-[11px] text-muted-foreground">
                     <Lightbulb className="size-3" />
-                    Solve 3–5 problems here to balance your topic coverage.
+                    Choose 3–5 problems from this topic; on Codeforces, aim near the suggested range above.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

@@ -54,6 +54,7 @@ export async function POST(
       userId: user.id,
       problemId: problem.id,
       solvedDate: problem.date,
+      isVerified: true,
     })),
     skipDuplicates: true,
   });

@@ -1,3 +1,7 @@
+import { unstable_cache } from "next/cache";
+import { CACHE_TAGS } from "@/lib/cache-tags";
+import { fetchCodeforcesApi } from "@/lib/codeforces-api";
+
 type TopicMap = Record<string, number>;
 
 export type TopicRadarPoint = {
@@ -84,16 +88,11 @@ export async function fetchCodeforcesTopicCounts(handle: string): Promise<TopicM
   let from = 1;
 
   for (let page = 0; page < 5; page++) {
-    const res = await fetch(
-      `https://codeforces.com/api/user.status?handle=${encodeURIComponent(handle)}&from=${from}&count=${pageSize}`,
-      { cache: "no-store" }
+    const submissions = await fetchCodeforcesApi<CFSubmission[]>(
+      "user.status",
+      { handle, from, count: pageSize },
+      20_000,
     );
-    if (!res.ok) throw new Error(`Codeforces user.status failed (${res.status})`);
-
-    const payload = await res.json();
-    if (payload.status !== "OK") throw new Error("Codeforces API returned non-OK status");
-
-    const submissions: CFSubmission[] = payload.result || [];
     for (const sub of submissions) {
       if (sub.verdict !== "OK") continue;
       const p = sub.problem;
@@ -137,6 +136,7 @@ export async function fetchLeetCodeTopicCounts(username: string): Promise<TopicM
   const res = await fetch("https://leetcode.com/graphql", {
     method: "POST",
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
     headers: {
       "Content-Type": "application/json",
       Origin: "https://leetcode.com",
@@ -188,7 +188,7 @@ async function fetchLeetCodeTopicCountsFromCpRating(
   try {
     const res = await fetch(
       `https://cp-rating-api.vercel.app/leetcode/${encodeURIComponent(username)}`,
-      { cache: "no-store" }
+      { cache: "no-store", signal: AbortSignal.timeout(10_000) }
     );
     if (!res.ok) return null;
     const payload: CpRatingLeetCodeResponse = await res.json();
@@ -199,13 +199,11 @@ async function fetchLeetCodeTopicCountsFromCpRating(
   }
 }
 
-export async function fetchCombinedTopicRadar(opts: {
-  codeforcesHandle?: string | null;
-  leetcodeUsername?: string | null;
-  topN?: number;
-}): Promise<TopicRadarPoint[]> {
-  const { codeforcesHandle, leetcodeUsername, topN = 12 } = opts;
-
+async function buildCombinedTopicRadar(
+  codeforcesHandle: string | null,
+  leetcodeUsername: string | null,
+  topN: number,
+): Promise<TopicRadarPoint[]> {
   const emptyMap: TopicMap = {};
   const [cfCounts, lcCounts] = await Promise.all([
     codeforcesHandle
@@ -234,4 +232,22 @@ export async function fetchCombinedTopicRadar(opts: {
 
   points.sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
   return points.slice(0, topN);
+}
+
+const getCachedCombinedTopicRadar = unstable_cache(
+  buildCombinedTopicRadar,
+  ["combined-topic-radar-v1"],
+  { revalidate: 1800, tags: [CACHE_TAGS.topicRadar] },
+);
+
+export async function fetchCombinedTopicRadar(opts: {
+  codeforcesHandle?: string | null;
+  leetcodeUsername?: string | null;
+  topN?: number;
+}): Promise<TopicRadarPoint[]> {
+  return getCachedCombinedTopicRadar(
+    opts.codeforcesHandle || null,
+    opts.leetcodeUsername || null,
+    opts.topN ?? 12,
+  );
 }

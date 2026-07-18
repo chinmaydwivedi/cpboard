@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { hasAdminAccess } from "@/lib/admin";
 import { AdminClient } from "./admin-client";
@@ -7,7 +7,7 @@ import { AdminClient } from "./admin-client";
 export default async function AdminPage() {
   let session;
   try {
-    session = await auth();
+    session = await getCurrentSession();
   } catch {
     redirect("/login");
   }
@@ -62,11 +62,11 @@ export default async function AdminPage() {
     prisma.pageVisit.count({
       where: { createdAt: { gte: oneDayAgo } },
     }),
-    prisma.pageVisit.findMany({
-      where: { createdAt: { gte: thirtyDaysAgo } },
-      distinct: ["visitorId"],
-      select: { visitorId: true },
-    }),
+    prisma.$queryRaw<Array<{ count: number }>>`
+      SELECT COUNT(DISTINCT "visitorId")::integer AS "count"
+      FROM "PageVisit"
+      WHERE "createdAt" >= ${thirtyDaysAgo}
+    `,
     prisma.pageVisit.groupBy({
       by: ["path"],
       _count: { path: true },
@@ -175,7 +175,7 @@ export default async function AdminPage() {
       analytics={{
         siteVisits: siteVisitCount,
         siteVisits24h: siteVisitCount24h,
-        uniqueVisitors30d: uniqueVisitors30dRows.length,
+        uniqueVisitors30d: uniqueVisitors30dRows[0]?.count ?? 0,
         totalProfileVisits: totalProfileViews._sum.profileViews ?? 0,
         topPages: topPagesRaw.map((page) => ({
           path: page.path,

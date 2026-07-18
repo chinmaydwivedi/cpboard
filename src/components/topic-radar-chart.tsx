@@ -1,20 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import {
-  Chart,
-  Filler,
-  Legend,
-  LineElement,
-  PointElement,
-  RadarController,
-  RadialLinearScale,
-  Tooltip,
-} from "chart.js";
 import type { TopicRadarPoint } from "@/lib/topic-radar";
 import { Badge } from "@/components/ui/badge";
 
-Chart.register(RadarController, RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 const SCALE_MARKERS = [5, 10, 20, 30, 100, 200, 300];
 const SCALE_MAX = SCALE_MARKERS.length;
 
@@ -51,6 +40,9 @@ export function TopicRadarChart({
 
   useEffect(() => {
     if (!canvasRef.current || data.length === 0) return;
+    const canvas = canvasRef.current;
+    let cancelled = false;
+    let chart: { destroy: () => void } | null = null;
     const colors = {
       fill: "rgba(251, 113, 133, 0.24)",
       border: "rgba(251, 113, 133, 0.95)",
@@ -61,71 +53,97 @@ export function TopicRadarChart({
       angle: "rgba(255,255,255,0.30)",
     };
 
-    const chart = new Chart(canvasRef.current, {
-      type: "radar",
-      data: {
-        labels: data.map((d) => d.topic),
-        datasets: [
-          {
-            label: "Solved Topic Frequency",
-            data: scaledData,
-            backgroundColor: colors.fill,
-            borderColor: colors.border,
-            borderWidth: 2,
-            pointBackgroundColor: colors.point,
-            pointBorderColor: colors.border,
-            pointBorderWidth: 1,
-            pointRadius: 2.5,
+    void import("chart.js").then(
+      ({
+        Chart,
+        Filler,
+        Legend,
+        LineElement,
+        PointElement,
+        RadarController,
+        RadialLinearScale,
+        Tooltip,
+      }) => {
+        if (cancelled) return;
+        Chart.register(
+          RadarController,
+          RadialLinearScale,
+          PointElement,
+          LineElement,
+          Filler,
+          Tooltip,
+          Legend,
+        );
+        chart = new Chart(canvas, {
+          type: "radar",
+          data: {
+            labels: data.map((d) => d.topic),
+            datasets: [
+              {
+                label: "Solved Topic Frequency",
+                data: scaledData,
+                backgroundColor: colors.fill,
+                borderColor: colors.border,
+                borderWidth: 2,
+                pointBackgroundColor: colors.point,
+                pointBorderColor: colors.border,
+                pointBorderWidth: 1,
+                pointRadius: 2.5,
+              },
+            ],
           },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const topic = data[ctx.dataIndex];
-                if (!topic) return "";
-                return `${topic.topic}: ${topic.count} (CF ${topic.codeforces}, LC ${topic.leetcode})`;
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const topic = data[ctx.dataIndex];
+                    if (!topic) return "";
+                    return `${topic.topic}: ${topic.count} (CF ${topic.codeforces}, LC ${topic.leetcode})`;
+                  },
+                },
+              },
+            },
+            scales: {
+              r: {
+                min: 0,
+                max: SCALE_MAX,
+                ticks: {
+                  stepSize: 1,
+                  color: colors.tick,
+                  backdropColor: "transparent",
+                  callback: (tickValue) => {
+                    const value = Number(tickValue);
+                    if (!Number.isInteger(value) || value < 1 || value > SCALE_MAX) return "";
+                    return `${SCALE_MARKERS[value - 1]}`;
+                  },
+                },
+                angleLines: {
+                  color: colors.angle,
+                  lineWidth: 1,
+                },
+                grid: {
+                  color: colors.grid,
+                  lineWidth: 1,
+                },
+                pointLabels: {
+                  color: colors.label,
+                  font: { size: 11, weight: 500 },
+                },
               },
             },
           },
-        },
-        scales: {
-          r: {
-            min: 0,
-            max: SCALE_MAX,
-            ticks: {
-              stepSize: 1,
-              color: colors.tick,
-              backdropColor: "transparent",
-              callback: (tickValue) => {
-                const value = Number(tickValue);
-                if (!Number.isInteger(value) || value < 1 || value > SCALE_MAX) return "";
-                return `${SCALE_MARKERS[value - 1]}`;
-              },
-            },
-            angleLines: {
-              color: colors.angle,
-              lineWidth: 1,
-            },
-            grid: {
-              color: colors.grid,
-              lineWidth: 1,
-            },
-            pointLabels: {
-              color: colors.label,
-              font: { size: 11, weight: 500 },
-            },
-          },
-        },
+        });
       },
-    });
+    );
 
-    return () => chart.destroy();
+    return () => {
+      cancelled = true;
+      chart?.destroy();
+    };
   }, [data, scaledData]);
 
   return (
