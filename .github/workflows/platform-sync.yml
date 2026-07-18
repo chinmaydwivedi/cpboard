@@ -37,3 +37,4 @@ jobs:
             --output /tmp/cpboard-sync-result.json \
             "$CPBOARD_PRODUCTION_URL/api/cron/sync-all"
           jq -c '{selected, attempted, successful, failed, skipped, timedOut}' /tmp/cpboard-sync-result.json
+          jq -e '(.attempted == 0) or (.successful > 0) or (.failed == 0)' /tmp/cpboard-sync-result.json > /dev/null

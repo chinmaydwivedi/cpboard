@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       const dedupeThreshold = new Date(Date.now() - DEDUPE_WINDOW_MS);
       const rateThreshold = new Date(Date.now() - RATE_WINDOW_MS);
       await prisma.$transaction(async (tx) => {
-        await tx.$queryRaw`
+        await tx.$executeRaw`
           SELECT pg_advisory_xact_lock(
             hashtext('cpboard-pageview'),
             hashtext(${viewerUserId})

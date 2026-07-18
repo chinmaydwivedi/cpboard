@@ -170,7 +170,7 @@ export async function lockPlatformProfileTransaction(
   platform: Platform,
 ) {
   const lockKey = `${userId}:${platform}`;
-  await tx.$queryRaw`
+  await tx.$executeRaw`
     SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
   `;
 }

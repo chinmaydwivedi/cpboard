@@ -82,7 +82,7 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         iconSrc: "/icon-192x192.png",
         title: "Coordinated Provider Updates",
         description:
-          "Across app instances, sync work and provider requests are paced, overlapping work is avoided, and temporary provider failures retry with bounded backoff.",
+          "Across app instances, sync work and provider requests are paced, overlapping work is avoided, temporary provider failures retry with bounded backoff, and scheduled runs now surface unhealthy all-failure batches.",
       },
       {
         id: "complete-public-accounts",

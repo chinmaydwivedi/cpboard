@@ -168,7 +168,7 @@ src/
 7. Copy the same `CRON_SECRET` into the GitHub Actions secret `CPBOARD_CRON_SECRET`, and set the repository variable `CPBOARD_PRODUCTION_URL` to the stable production origin without a trailing slash
 8. The included GitHub Actions workflows call `/api/cron/sync-all` twice daily and `/api/cron/notifications` every ten minutes
 
-The schedules live in GitHub Actions because this project currently deploys on Vercel Hobby, whose cron jobs cannot run every ten minutes. The notification job refreshes the saved contest schedule, sends due reminders, and checks for a new global leaderboard leader; database delivery records and job leases prevent duplicates if a workflow is delayed or retried.
+The schedules live in GitHub Actions because this project currently deploys on Vercel Hobby, whose cron jobs cannot run every ten minutes. The notification job refreshes the saved contest schedule, sends due reminders, and checks for a new global leaderboard leader; database delivery records and job leases prevent duplicates if a workflow is delayed or retried. The sync workflow also fails visibly when every attempted profile fails, instead of reporting a healthy transport-only run.
 
 `vercel.json` pins server functions to Singapore (`sin1`) to match the current Neon `ap-southeast-1` database. Change both together if the database moves regions.
 

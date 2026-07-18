@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
   const userAgent = req.headers.get("user-agent")?.slice(0, 500) || null;
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`
+      await tx.$executeRaw`
         SELECT pg_advisory_xact_lock(
           hashtext('cpboard-push-subscriptions'),
           hashtext(${userId})
