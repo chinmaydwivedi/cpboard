@@ -174,6 +174,8 @@ The schedule lives in GitHub Actions because this project currently deploys on V
 
 `vercel.json` pins server functions to Singapore (`sin1`) to match the current Neon `ap-southeast-1` database. Change both together if the database moves regions.
 
+Preview deployments are intentionally skipped because this project does not yet have an isolated preview database. Do not attach production database credentials to preview branches; create a separate Neon branch and least-privilege preview role before enabling Vercel previews.
+
 After deployment, sign in on an HTTPS browser, enable notifications from the Dashboard, and use **Send test** to verify the complete production delivery path. Browser permission and subscriptions are device-specific; alert-type preferences belong to the signed-in account.
 
 ## Update and Performance Model
