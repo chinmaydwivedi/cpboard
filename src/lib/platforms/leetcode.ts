@@ -1,4 +1,5 @@
 import type { PlatformData } from "@/types";
+import { ProviderProfileNotFoundError } from "./errors";
 
 const LEETCODE_GRAPHQL = "https://leetcode.com/graphql";
 
@@ -87,7 +88,7 @@ export async function fetchLeetcodeData(handle: string): Promise<PlatformData> {
   const profileData = await profileRes.json();
   const user = profileData.data?.matchedUser;
 
-  if (!user) throw new Error("LeetCode user not found");
+  if (!user) throw new ProviderProfileNotFoundError();
 
   const acStats = user.submitStatsGlobal?.acSubmissionNum || [];
   const totalSolved = acStats.find(

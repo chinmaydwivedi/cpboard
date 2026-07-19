@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { syncUserPlatform } from "@/lib/platforms";
+import { ProviderProfileNotFoundError } from "@/lib/platforms/errors";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import {
   CRON_SYNC_COOLDOWN_MS,
@@ -144,7 +145,8 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       const skipped =
         error instanceof PlatformSyncLeaseError ||
-        error instanceof PlatformProfileNotLinkedError;
+        error instanceof PlatformProfileNotLinkedError ||
+        error instanceof ProviderProfileNotFoundError;
       if (!skipped) {
         // Keep logs useful without formatting or writing provider-controlled
         // values into the log stream.
