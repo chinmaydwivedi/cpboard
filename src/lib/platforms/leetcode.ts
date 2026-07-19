@@ -52,6 +52,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+const MISSING_USER_MESSAGES = new Set([
+  "that user does not exist.",
+  "user matching query does not exist.",
+]);
+
+function isMissingUserGraphQLError(value: unknown) {
+  if (!isRecord(value) || typeof value.message !== "string") return false;
+  if (!MISSING_USER_MESSAGES.has(value.message.trim().toLowerCase())) {
+    return false;
+  }
+
+  return (
+    Array.isArray(value.path) &&
+    (value.path[0] === "matchedUser" ||
+      value.path[0] === "userContestRanking")
+  );
+}
+
 export async function fetchLeetcodeData(handle: string): Promise<PlatformData> {
   const signal = AbortSignal.timeout(15_000);
   const [profileRes, calendarRes, recentAcceptedRes] = await Promise.all([
@@ -93,9 +111,10 @@ export async function fetchLeetcodeData(handle: string): Promise<PlatformData> {
   if (!isRecord(profilePayload)) {
     throw new Error("LeetCode profile returned invalid data");
   }
-  if (Array.isArray(profilePayload.errors) && profilePayload.errors.length > 0) {
-    throw new Error("LeetCode profile API failed");
+  if (profilePayload.errors != null && !Array.isArray(profilePayload.errors)) {
+    throw new Error("LeetCode profile returned invalid data");
   }
+  const graphQLErrors = profilePayload.errors ?? [];
   const profileData = profilePayload.data;
   if (
     !isRecord(profileData) ||
@@ -106,7 +125,18 @@ export async function fetchLeetcodeData(handle: string): Promise<PlatformData> {
   }
 
   const user = profileData.matchedUser;
-  if (user === null) throw new ProviderProfileNotFoundError();
+  if (user === null) {
+    if (
+      graphQLErrors.length === 0 ||
+      graphQLErrors.every(isMissingUserGraphQLError)
+    ) {
+      throw new ProviderProfileNotFoundError();
+    }
+    throw new Error("LeetCode profile API failed");
+  }
+  if (graphQLErrors.length > 0) {
+    throw new Error("LeetCode profile API failed");
+  }
   if (
     !isRecord(user) ||
     typeof user.username !== "string" ||
