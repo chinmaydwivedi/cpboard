@@ -146,10 +146,9 @@ export async function POST(req: NextRequest) {
         error instanceof PlatformSyncLeaseError ||
         error instanceof PlatformProfileNotLinkedError;
       if (!skipped) {
-        console.warn(
-          `Background ${platform} sync failed`,
-          error instanceof Error ? error.name : "Unknown",
-        );
+        // Keep logs useful without formatting or writing provider-controlled
+        // values into the log stream.
+        console.warn("A background provider sync failed");
       }
       return { success: false, skipped };
     }
