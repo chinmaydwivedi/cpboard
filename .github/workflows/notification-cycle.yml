@@ -108,6 +108,8 @@ jobs:
               failed_attempts="$(jq -r '.failed' "$result")"
               successful_attempts="$(jq -r '.successful' "$result")"
 
+              # Missing or deleted provider accounts are returned as skipped,
+              # so they never enter these provider-degradation failure counts.
               if test "$malformed_failures" -gt 0; then
                 echo "::error title=Malformed provider data::$platform recorded $malformed_failures malformed response(s)"
                 failed=1
