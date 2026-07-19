@@ -45,6 +45,16 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
           "AtCoder account existence is now verified against the official profile page. A missing Kenkoooo accepted-count row is correctly treated as zero solved problems for a valid account instead of repeatedly marking that person as missing.",
       },
       {
+        id: "accurate-leetcode-missing-profiles",
+        label: "FIXED",
+        pageHref: "/dashboard",
+        pageLabel: "LeetCode",
+        iconSrc: "/icon-192x192.png",
+        title: "Missing Accounts Stay Isolated",
+        description:
+          "Deleted or unavailable LeetCode accounts are now skipped as missing profiles instead of being reported as a provider outage. Partial or unfamiliar GraphQL errors still fail safely and cannot overwrite trusted stats.",
+      },
+      {
         id: "maintenance-catch-up-budget",
         label: "IMPROVED",
         pageHref: "/leaderboard",
