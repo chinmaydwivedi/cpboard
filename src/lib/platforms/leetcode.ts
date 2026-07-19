@@ -48,6 +48,10 @@ type RecentAcceptedSubmission = {
   timestamp?: string;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export async function fetchLeetcodeData(handle: string): Promise<PlatformData> {
   const signal = AbortSignal.timeout(15_000);
   const [profileRes, calendarRes, recentAcceptedRes] = await Promise.all([
@@ -85,19 +89,65 @@ export async function fetchLeetcodeData(handle: string): Promise<PlatformData> {
 
   if (!profileRes.ok) throw new Error(`LeetCode profile fetch failed: ${profileRes.status}`);
 
-  const profileData = await profileRes.json();
-  const user = profileData.data?.matchedUser;
+  const profilePayload: unknown = await profileRes.json();
+  if (!isRecord(profilePayload)) {
+    throw new Error("LeetCode profile returned invalid data");
+  }
+  if (Array.isArray(profilePayload.errors) && profilePayload.errors.length > 0) {
+    throw new Error("LeetCode profile API failed");
+  }
+  const profileData = profilePayload.data;
+  if (
+    !isRecord(profileData) ||
+    !("matchedUser" in profileData) ||
+    !("userContestRanking" in profileData)
+  ) {
+    throw new Error("LeetCode profile returned invalid data");
+  }
 
-  if (!user) throw new ProviderProfileNotFoundError();
+  const user = profileData.matchedUser;
+  if (user === null) throw new ProviderProfileNotFoundError();
+  if (
+    !isRecord(user) ||
+    typeof user.username !== "string" ||
+    user.username.toLowerCase() !== handle.toLowerCase()
+  ) {
+    throw new Error("LeetCode profile returned invalid data");
+  }
 
-  const acStats = user.submitStatsGlobal?.acSubmissionNum || [];
-  const totalSolved = acStats.find(
-    (s: { difficulty: string; count: number }) => s.difficulty === "All"
-  )?.count || 0;
+  const submitStats = user.submitStatsGlobal;
+  if (!isRecord(submitStats) || !Array.isArray(submitStats.acSubmissionNum)) {
+    throw new Error("LeetCode profile returned invalid data");
+  }
+  const totalStat = submitStats.acSubmissionNum.find(
+    (stat) => isRecord(stat) && stat.difficulty === "All",
+  );
+  if (
+    !isRecord(totalStat) ||
+    !Number.isSafeInteger(totalStat.count) ||
+    Number(totalStat.count) < 0
+  ) {
+    throw new Error("LeetCode profile returned invalid data");
+  }
+  const totalSolved = Number(totalStat.count);
 
-  const contestInfo = profileData.data?.userContestRanking;
-  const rating = Math.round(contestInfo?.rating || 0);
-  const contestsCount = contestInfo?.attendedContestsCount || 0;
+  const contestInfo = profileData.userContestRanking;
+  if (contestInfo !== null && !isRecord(contestInfo)) {
+    throw new Error("LeetCode profile returned invalid data");
+  }
+  const rawRating = contestInfo?.rating;
+  const rawContestsCount = contestInfo?.attendedContestsCount;
+  if (
+    (rawRating != null &&
+      (typeof rawRating !== "number" || !Number.isFinite(rawRating))) ||
+    (rawContestsCount != null &&
+      (!Number.isSafeInteger(rawContestsCount) ||
+        Number(rawContestsCount) < 0))
+  ) {
+    throw new Error("LeetCode profile returned invalid data");
+  }
+  const rating = Math.round(Number(rawRating ?? 0));
+  const contestsCount = Number(rawContestsCount ?? 0);
 
   const dailyActivity: Record<string, number> = {};
 
@@ -158,7 +208,11 @@ export async function fetchLeetcodeData(handle: string): Promise<PlatformData> {
     rating,
     maxRating: rating,
     problemsSolved: totalSolved,
-    rank: contestInfo?.globalRanking?.toString() || null,
+    rank:
+      typeof contestInfo?.globalRanking === "number" &&
+      Number.isFinite(contestInfo.globalRanking)
+        ? contestInfo.globalRanking.toString()
+        : null,
     contestsCount,
     dailyActivity,
   };

@@ -2,9 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { unstable_cache } from "next/cache";
 import { CPRankingsClient } from "./cp-rankings-client";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+import { withReadRetry } from "@/lib/read-retry";
 import { redirect } from "next/navigation";
 
 export const revalidate = 60;
+export const dynamic = "force-dynamic";
 const PAGE_SIZE = 10;
 
 type RatingSummary = {
@@ -22,15 +24,15 @@ type RatingSummary = {
 
 const getCPSummary = unstable_cache(
   async () => {
-    try {
     const where = {
       platform: "CODEFORCES" as const,
       rating: { gt: 0 },
       verified: true,
       user: { onboardingComplete: true },
     };
-    const [summaryRows, topProfiles] = await Promise.all([
-      prisma.$queryRaw<RatingSummary[]>`
+    const [summaryRows, topProfiles] = await withReadRetry(() =>
+      Promise.all([
+        prisma.$queryRaw<RatingSummary[]>`
         SELECT
           COUNT(*)::integer AS "totalUsers",
           COALESCE(MAX("rating"), 0)::integer AS "highestRating",
@@ -50,27 +52,28 @@ const getCPSummary = unstable_cache(
           AND profiles."rating" > 0
           AND profiles."verified" = true
       `,
-      prisma.platformProfile.findMany({
-        where,
-        select: {
-          handle: true,
-          rating: true,
-          maxRating: true,
-          rank: true,
-          contestsCount: true,
-          user: {
-            select: {
-              username: true,
-              name: true,
-              avatarUrl: true,
-              university: { select: { shortName: true } },
+        prisma.platformProfile.findMany({
+          where,
+          select: {
+            handle: true,
+            rating: true,
+            maxRating: true,
+            rank: true,
+            contestsCount: true,
+            user: {
+              select: {
+                username: true,
+                name: true,
+                avatarUrl: true,
+                university: { select: { shortName: true } },
+              },
             },
           },
-        },
-        orderBy: [{ rating: "desc" }, { userId: "asc" }],
-        take: 3,
-      }),
-    ]);
+          orderBy: [{ rating: "desc" }, { userId: "asc" }],
+          take: 3,
+        }),
+      ]),
+    );
     const summary = summaryRows[0] ?? {
       totalUsers: 0,
       highestRating: 0,
@@ -113,15 +116,6 @@ const getCPSummary = unstable_cache(
       highestRating: summary.highestRating,
       averageRating: summary.averageRating,
     };
-  } catch {
-    return {
-      topUsers: [],
-      distribution: [],
-      totalUsers: 0,
-      highestRating: 0,
-      averageRating: 0,
-    };
-    }
   },
   ["cp-rankings-summary-v1"],
   { revalidate: 60, tags: [CACHE_TAGS.cpRankings] },
@@ -129,8 +123,8 @@ const getCPSummary = unstable_cache(
 
 const getCPPage = unstable_cache(
   async (page: number) => {
-    try {
-      const profiles = await prisma.platformProfile.findMany({
+    const profiles = await withReadRetry(() =>
+      prisma.platformProfile.findMany({
         where: {
           platform: "CODEFORCES",
           rating: { gt: 0 },
@@ -155,23 +149,21 @@ const getCPPage = unstable_cache(
         orderBy: [{ rating: "desc" }, { userId: "asc" }],
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
-      });
+      }),
+    );
 
-      return profiles.map((profile, index) => ({
-        rank: (page - 1) * PAGE_SIZE + index + 1,
-        username: profile.user.username,
-        name: profile.user.name,
-        avatarUrl: profile.user.avatarUrl,
-        handle: profile.handle,
-        rating: profile.rating,
-        maxRating: profile.maxRating,
-        cfRank: profile.rank,
-        universityShortName: profile.user.university.shortName,
-        contestsCount: profile.contestsCount,
-      }));
-    } catch {
-      return [];
-    }
+    return profiles.map((profile, index) => ({
+      rank: (page - 1) * PAGE_SIZE + index + 1,
+      username: profile.user.username,
+      name: profile.user.name,
+      avatarUrl: profile.user.avatarUrl,
+      handle: profile.handle,
+      rating: profile.rating,
+      maxRating: profile.maxRating,
+      cfRank: profile.rank,
+      universityShortName: profile.user.university.shortName,
+      contestsCount: profile.contestsCount,
+    }));
   },
   ["cp-rankings-page-v1"],
   { revalidate: 60, tags: [CACHE_TAGS.cpRankings] },

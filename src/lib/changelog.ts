@@ -18,6 +18,85 @@ export type ChangelogRelease = {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    id: "2026-07-19-data-resilience-repair",
+    publishedOn: "2026-07-19",
+    headline: "Stable Data Through Provider Hiccups",
+    summary:
+      "Rankings now preserve their last successful data through temporary database or provider failures, while maintenance runs catch up more work and report transient degradation without turning one isolated profile into a site-wide incident.",
+    highlights: [
+      {
+        id: "last-known-good-public-data",
+        label: "FIXED",
+        pageHref: "/leaderboard",
+        pageLabel: "Rankings",
+        iconSrc: "/icon-192x192.png",
+        title: "Last-Known-Good Rankings",
+        description:
+          "Landing statistics, global rankings, university boards, and CP Rankings no longer cache database failures as real zero or empty results. Safe reads retry once, and failed revalidation keeps the last successful view available.",
+      },
+      {
+        id: "accurate-atcoder-zero-solve-profiles",
+        label: "FIXED",
+        pageHref: "/dashboard",
+        pageLabel: "AtCoder",
+        iconSrc: "/icon-192x192.png",
+        title: "Accurate Zero-Solve Accounts",
+        description:
+          "AtCoder account existence is now verified against the official profile page. A missing Kenkoooo accepted-count row is correctly treated as zero solved problems for a valid account instead of repeatedly marking that person as missing.",
+      },
+      {
+        id: "maintenance-catch-up-budget",
+        label: "IMPROVED",
+        pageHref: "/leaderboard",
+        pageLabel: "Freshness",
+        iconSrc: "/icon-192x192.png",
+        title: "Faster Backlog Recovery",
+        description:
+          "Each provider lane can process a larger, duration-bounded candidate set with provider-specific worker concurrency, shared request pacing, row locks, and leases. Codeforces reads also inherit the route deadline. Delayed scheduler invocations can therefore catch up without creating an uncontrolled provider burst.",
+      },
+      {
+        id: "maintenance-degradation-signals",
+        label: "FIXED",
+        pageHref: "/changelog",
+        pageLabel: "Operations",
+        iconSrc: "/icon-192x192.png",
+        title: "Meaningful Maintenance Alerts",
+        description:
+          "Scheduled runs now expose fixed, privacy-safe failure categories and durable streaks. A first isolated profile failure produces a visible warning, while a bounded confirmation slot prioritizes its next eligible retry without starving healthy profiles. Malformed responses, systemic transport failures, and repeated degradation still fail the maintenance gate.",
+      },
+      {
+        id: "validated-provider-contracts",
+        label: "IMPROVED",
+        pageHref: "/dashboard",
+        pageLabel: "Provider sync",
+        iconSrc: "/icon-192x192.png",
+        title: "Validated Provider Responses",
+        description:
+          "Codeforces, LeetCode, AtCoder, and CodeChef responses now validate the identity and core fields CPBoard uses before any write. Redirected profile pages, partial GraphQL errors, malformed rows, and invalid contest snapshots are rejected instead of becoming believable zero data.",
+      },
+      {
+        id: "graceful-data-recovery",
+        label: "FIXED",
+        pageHref: "/",
+        pageLabel: "Site-wide",
+        iconSrc: "/icon-192x192.png",
+        title: "Clear Recovery Instead of Blank Screens",
+        description:
+          "Unexpected page and root-layout failures now have in-theme recovery screens and retry actions. Contest-feed outages are distinguished from a genuinely empty calendar, including before hydration, instead of being presented as though no contests exist.",
+      },
+      {
+        id: "restricted-browser-storage",
+        label: "FIXED",
+        pageHref: "/",
+        pageLabel: "Browser reliability",
+        iconSrc: "/icon-192x192.png",
+        title: "Safe Private-Browser Preferences",
+        description:
+          "Theme, What’s New, and walkthrough preferences now tolerate blocked, full, or unavailable browser storage. Restricted browser modes fall back to current-tab memory instead of crashing root-level UI or ignoring dismiss actions.",
+      },
+    ],
+  },
+  {
     id: "2026-07-19-parallel-security-release",
     publishedOn: "2026-07-19",
     headline: "Faster Refreshes and Stronger Defenses",

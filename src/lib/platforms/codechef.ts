@@ -1,5 +1,4 @@
 import type { PlatformData } from "@/types";
-import { ProviderProfileNotFoundError } from "./errors";
 
 const API_BASE = "https://cp-rating-api.vercel.app";
 
@@ -16,11 +15,23 @@ type CodeChefAPIResponse = {
   contests?: unknown[];
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isOptionalCount(value: unknown) {
+  return value == null || parseCount(value) !== null;
+}
+
 function parseCount(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value >= 0 ? value : null;
+  }
   if (typeof value === "string") {
-    const n = parseInt(value.replace(/,/g, "").trim(), 10);
-    return Number.isFinite(n) ? Math.max(0, n) : null;
+    const normalized = value.replace(/,/g, "").trim();
+    if (!/^\d+$/.test(normalized)) return null;
+    const n = Number(normalized);
+    return Number.isSafeInteger(n) ? n : null;
   }
   return null;
 }
@@ -72,13 +83,40 @@ export async function fetchCodechefData(handle: string): Promise<PlatformData> {
 
   if (!res.ok) throw new Error(`CodeChef API failed: ${res.status}`);
 
-  const data: CodeChefAPIResponse = await res.json();
-
-  if (!data.username && !data.rating) {
-    throw new ProviderProfileNotFoundError();
+  const payload: unknown = await res.json();
+  if (!isRecord(payload)) {
+    throw new Error("CodeChef API returned invalid data");
   }
+  if (typeof payload.error === "string" && payload.error.trim()) {
+    throw new Error("CodeChef API failed");
+  }
+  if (
+    typeof payload.username !== "string" ||
+    payload.username.trim().length === 0 ||
+    payload.username.toLowerCase() !== handle.toLowerCase() ||
+    (payload.rating != null &&
+      (typeof payload.rating !== "string" ||
+        !/^[0-9,\s]*$/.test(payload.rating))) ||
+    (payload.stars != null &&
+      (!Number.isSafeInteger(payload.stars) ||
+        Number(payload.stars) < 0 ||
+        Number(payload.stars) > 7)) ||
+    (payload.globalRank != null &&
+      (!Number.isSafeInteger(payload.globalRank) ||
+        Number(payload.globalRank) < 1)) ||
+    (payload.participation != null &&
+      (!Number.isSafeInteger(payload.participation) ||
+        Number(payload.participation) < 0)) ||
+    !isOptionalCount(payload.problemsSolved) ||
+    !isOptionalCount(payload.problems_solved) ||
+    !isOptionalCount(payload.fullySolved) ||
+    !isOptionalCount(payload.fully_solved)
+  ) {
+    throw new Error("CodeChef API returned invalid data");
+  }
+  const data = payload as CodeChefAPIResponse & { username: string };
 
-  const rating = parseInt(data.rating || "0", 10) || 0;
+  const rating = parseInt((data.rating || "0").replace(/,/g, ""), 10) || 0;
   const stars = data.stars ? `${data.stars}★` : null;
   const rawData = data as unknown as Record<string, unknown>;
   const apiSolved = Math.max(
