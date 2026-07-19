@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 
 export const USER_SYNC_COOLDOWN_MS = 30 * 60 * 1_000;
 export const CRON_SYNC_COOLDOWN_MS = 10 * 60 * 1_000;
+export const INTERACTIVE_FAILURE_RETRY_MS = 2 * 60 * 1_000;
 
 const SYNC_LEASE_DURATION_MS = 90 * 1_000;
 const FAILURE_BACKOFF_BASE_MS = 30 * 60 * 1_000;
@@ -43,9 +44,16 @@ export async function acquirePlatformSyncLease(args: {
   userId: string;
   platform: Platform;
   minIntervalMs?: number;
+  interactiveFailureRetryMs?: number;
 }): Promise<PlatformSyncLease> {
   const leaseToken = randomUUID();
   const minIntervalMs = Math.max(0, args.minIntervalMs ?? USER_SYNC_COOLDOWN_MS);
+  const interactiveFailureRetryMs =
+    args.interactiveFailureRetryMs == null
+      ? null
+      : Math.max(1_000, args.interactiveFailureRetryMs);
+  const canRetryFailureInteractively = interactiveFailureRetryMs != null;
+  const interactiveRetryIntervalMs = interactiveFailureRetryMs ?? 0;
   const acquired = await prisma.$queryRaw<Array<{ leaseToken: string }>>`
     INSERT INTO "PlatformSyncLease" (
       "userId",
@@ -78,12 +86,24 @@ export async function acquirePlatformSyncLease(args: {
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "PlatformSyncLease"."leaseUntil" <= CURRENT_TIMESTAMP
         AND (
-          "PlatformSyncLease"."nextAttemptAt" IS NULL
-          OR "PlatformSyncLease"."nextAttemptAt" <= CURRENT_TIMESTAMP
-        )
-        AND "PlatformSyncLease"."lastStartedAt" <= CURRENT_TIMESTAMP - (
-          CAST(${minIntervalMs} AS double precision)
-          * INTERVAL '1 millisecond'
+          (
+            (
+              "PlatformSyncLease"."nextAttemptAt" IS NULL
+              OR "PlatformSyncLease"."nextAttemptAt" <= CURRENT_TIMESTAMP
+            )
+            AND "PlatformSyncLease"."lastStartedAt" <= CURRENT_TIMESTAMP - (
+              CAST(${minIntervalMs} AS double precision)
+              * INTERVAL '1 millisecond'
+            )
+          )
+          OR (
+            ${canRetryFailureInteractively}
+            AND "PlatformSyncLease"."consecutiveFailures" > 0
+            AND "PlatformSyncLease"."lastStartedAt" <= CURRENT_TIMESTAMP - (
+              CAST(${interactiveRetryIntervalMs} AS double precision)
+              * INTERVAL '1 millisecond'
+            )
+          )
         )
     RETURNING "leaseToken"
   `;
@@ -96,7 +116,12 @@ export async function acquirePlatformSyncLease(args: {
     where: {
       userId_platform: { userId: args.userId, platform: args.platform },
     },
-    select: { leaseUntil: true, lastStartedAt: true, nextAttemptAt: true },
+    select: {
+      leaseUntil: true,
+      lastStartedAt: true,
+      nextAttemptAt: true,
+      consecutiveFailures: true,
+    },
   });
   const now = Date.now();
   if (existing?.leaseUntil && existing.leaseUntil.getTime() > now) {
@@ -106,21 +131,44 @@ export async function acquirePlatformSyncLease(args: {
       secondsUntil(existing.leaseUntil, now),
     );
   }
-  if (existing?.nextAttemptAt && existing.nextAttemptAt.getTime() > now) {
+  if (existing) {
+    const normalRetryAt = Math.max(
+      existing.lastStartedAt.getTime() + minIntervalMs,
+      existing.nextAttemptAt?.getTime() ?? now,
+    );
+    const interactiveRetryAt =
+      interactiveFailureRetryMs != null && existing.consecutiveFailures > 0
+        ? existing.lastStartedAt.getTime() + interactiveFailureRetryMs
+        : Number.POSITIVE_INFINITY;
+    const earliestRetryAt = Math.min(normalRetryAt, interactiveRetryAt);
+    const waitingOnFailure =
+      existing.nextAttemptAt != null && existing.nextAttemptAt.getTime() > now;
+
     throw new PlatformSyncLeaseError(
-      "The provider is recovering from a failed sync. Try again shortly.",
-      "SYNC_BACKOFF",
-      secondsUntil(existing.nextAttemptAt, now),
+      waitingOnFailure
+        ? "A recent sync attempt failed. Try again shortly."
+        : "Please wait before syncing this platform again",
+      waitingOnFailure ? "SYNC_BACKOFF" : "SYNC_COOLDOWN",
+      secondsUntil(new Date(earliestRetryAt), now),
     );
   }
-  const cooldownUntil = existing
-    ? new Date(existing.lastStartedAt.getTime() + minIntervalMs)
-    : new Date(now + Math.max(1_000, minIntervalMs));
+
+  const cooldownUntil = new Date(now + Math.max(1_000, minIntervalMs));
   throw new PlatformSyncLeaseError(
     "Please wait before syncing this platform again",
     "SYNC_COOLDOWN",
     secondsUntil(cooldownUntil, now),
   );
+}
+
+export async function cancelPlatformSyncLease(lease: PlatformSyncLease) {
+  await prisma.platformSyncLease.deleteMany({
+    where: {
+      userId: lease.userId,
+      platform: lease.platform,
+      leaseToken: lease.leaseToken,
+    },
+  });
 }
 
 export async function completePlatformSyncLease(

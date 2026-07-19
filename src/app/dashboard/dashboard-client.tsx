@@ -83,6 +83,16 @@ function resizeImage(file: File, maxDim: number, quality: number): Promise<strin
   });
 }
 
+function formatRetryDelay(totalSeconds: number) {
+  const seconds = Math.max(1, Math.ceil(totalSeconds));
+  const hours = Math.floor(seconds / 3_600);
+  const minutes = Math.floor((seconds % 3_600) / 60);
+  const remainder = seconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${remainder}s`;
+  return `${remainder}s`;
+}
+
 export function DashboardClient({
   user,
   profiles,
@@ -113,12 +123,17 @@ export function DashboardClient({
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const syncInFlightRef = useRef(new Set<Platform>());
   const [handles, setHandles] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     for (const p of profiles) map[p.platform] = p.handle;
     return map;
   });
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
+  const [syncRetryUntil, setSyncRetryUntil] = useState<
+    Partial<Record<Platform, number>>
+  >({});
+  const [syncRetryClock, setSyncRetryClock] = useState(0);
   const [verificationTarget, setVerificationTarget] = useState<{
     platform: VerificationPlatform;
     handle: string;
@@ -156,6 +171,32 @@ export function DashboardClient({
     });
     previousProfilesRef.current = profiles;
   }, [profiles]);
+
+  useEffect(() => {
+    const hasActiveRetry = Object.values(syncRetryUntil).some(
+      (deadline) => deadline != null && deadline > Date.now(),
+    );
+    if (!hasActiveRetry) return;
+
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      setSyncRetryClock(now);
+      setSyncRetryUntil((current) => {
+        let changed = false;
+        const next = { ...current };
+        for (const platform of ALL_PLATFORMS) {
+          const deadline = next[platform];
+          if (deadline != null && deadline <= now) {
+            delete next[platform];
+            changed = true;
+          }
+        }
+        return changed ? next : current;
+      });
+    }, 1_000);
+
+    return () => window.clearInterval(interval);
+  }, [syncRetryUntil]);
 
   const verifiedProfiles = currentProfiles.filter((profile) => profile.verified);
   const totalSolved = verifiedProfiles.reduce(
@@ -222,11 +263,22 @@ export function DashboardClient({
   };
 
   const handleSync = async (platform: Platform) => {
+    if (syncInFlightRef.current.has(platform)) return;
+    const retryDeadline = syncRetryUntil[platform];
+    if (retryDeadline != null && retryDeadline > Date.now()) {
+      toast.message(
+        `Try ${PLATFORM_LABELS[platform]} again in ${formatRetryDelay(
+          (retryDeadline - Date.now()) / 1_000,
+        )}`,
+      );
+      return;
+    }
     const handle = handles[platform]?.trim();
     if (!handle) { toast.error("Enter a handle first"); return; }
     const existingProfile = currentProfiles.find(
       (profile) => profile.platform === platform,
     );
+    syncInFlightRef.current.add(platform);
     setSyncing((prev) => ({ ...prev, [platform]: true }));
     try {
       const res = await fetch("/api/platforms/sync", {
@@ -235,8 +287,34 @@ export function DashboardClient({
         body: JSON.stringify({ platform, handle }),
       });
       const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Sync failed"); return; }
+      if (!res.ok) {
+        const retryAfter = Number.parseInt(
+          res.headers.get("Retry-After") ?? "",
+          10,
+        );
+        if (res.status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
+          const boundedRetryAfter = Math.min(24 * 60 * 60, retryAfter);
+          const now = Date.now();
+          setSyncRetryClock(now);
+          setSyncRetryUntil((current) => ({
+            ...current,
+            [platform]: now + boundedRetryAfter * 1_000,
+          }));
+          toast.error(data.error || "Sync is temporarily unavailable", {
+            description: `Try again in ${formatRetryDelay(boundedRetryAfter)}.`,
+          });
+        } else {
+          toast.error(data.error || "Sync failed");
+        }
+        return;
+      }
       toast.success(`${PLATFORM_LABELS[platform]} synced`);
+      setSyncRetryUntil((current) => {
+        if (current[platform] == null) return current;
+        const next = { ...current };
+        delete next[platform];
+        return next;
+      });
       setCurrentProfiles((prev) => {
         const idx = prev.findIndex((p) => p.platform === platform);
         const syncedHandle = data?.data?.handle || handle;
@@ -257,7 +335,10 @@ export function DashboardClient({
       setHandles((prev) => ({ ...prev, [platform]: data?.data?.handle || handle }));
       router.refresh();
     } catch { toast.error("Network error"); }
-    finally { setSyncing((prev) => ({ ...prev, [platform]: false })); }
+    finally {
+      syncInFlightRef.current.delete(platform);
+      setSyncing((prev) => ({ ...prev, [platform]: false }));
+    }
   };
 
   const handlePlatformAction = (platform: Platform, profile?: ProfileData) => {
@@ -536,11 +617,22 @@ export function DashboardClient({
             Boolean(profile?.verified) &&
             Boolean(profile?.verifiedAt) &&
             profile?.handle.toLowerCase() === enteredCanonical;
-          const actionLabel = requiresOwnershipCheck && !ownershipVerified
-            ? profile?.verifiedAt
-              ? "Verify new handle"
-              : "Verify handle"
-            : "Sync stats";
+          const needsVerification =
+            requiresOwnershipCheck && !ownershipVerified;
+          const retrySeconds = Math.max(
+            0,
+            Math.ceil(
+              ((syncRetryUntil[platform] ?? 0) - syncRetryClock) / 1_000,
+            ),
+          );
+          const waitingToRetry = !needsVerification && retrySeconds > 0;
+          const actionLabel = waitingToRetry
+            ? `Retry in ${formatRetryDelay(retrySeconds)}`
+            : needsVerification
+              ? profile?.verifiedAt
+                ? "Verify new handle"
+                : "Verify handle"
+              : "Sync stats";
           return (
             <div key={platform} className={`rounded-lg border p-4 ${platformColor[platform]}`}>
               <div className="flex items-center justify-between gap-3 mb-3">
@@ -599,11 +691,16 @@ export function DashboardClient({
                   size="sm"
                   variant="outline"
                   onClick={() => handlePlatformAction(platform, profile)}
-                  disabled={syncing[platform] || removingPlatform === platform}
+                  disabled={
+                    syncing[platform] ||
+                    removingPlatform === platform ||
+                    waitingToRetry
+                  }
                   aria-label={`${actionLabel} for ${PLATFORM_LABELS[platform]}`}
-                  className="h-8 gap-1.5 px-3"
+                  title={waitingToRetry ? actionLabel : undefined}
+                  className="h-8 gap-1.5 px-3 sm:min-w-20"
                 >
-                  {requiresOwnershipCheck && !ownershipVerified ? (
+                  {needsVerification ? (
                     <ShieldCheck className="size-3" aria-hidden="true" />
                   ) : (
                     <RefreshCw
@@ -611,8 +708,20 @@ export function DashboardClient({
                       aria-hidden="true"
                     />
                   )}
-                  <span className="hidden text-[11px] sm:inline">
-                    {requiresOwnershipCheck && !ownershipVerified ? "Verify" : "Sync"}
+                  <span
+                    className={`text-[11px] ${
+                      waitingToRetry ? "inline" : "hidden sm:inline"
+                    }`}
+                  >
+                    {waitingToRetry
+                      ? `Retry ${
+                          retrySeconds >= 60
+                            ? `${Math.ceil(retrySeconds / 60)}m`
+                            : `${retrySeconds}s`
+                        }`
+                      : needsVerification
+                        ? "Verify"
+                        : "Sync"}
                   </span>
                 </Button>
               </div>

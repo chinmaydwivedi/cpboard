@@ -18,6 +18,35 @@ export type ChangelogRelease = {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    id: "2026-07-19-connection-reliability",
+    publishedOn: "2026-07-19",
+    headline: "Reliable Connections and Alerts",
+    summary:
+      "Platform account retries now recover cleanly from failed syncs, while browser notification controls stay stable and preserve valid subscriptions.",
+    highlights: [
+      {
+        id: "reliable-interactive-account-retries",
+        label: "FIXED",
+        pageHref: "/dashboard",
+        pageLabel: "Platform accounts",
+        iconSrc: "/icon-192x192.png",
+        title: "Reliable Account Connections",
+        description:
+          "An explicit dashboard retry can now recover from a failed sync attempt after a short safety window without bypassing active work or background rate limits. Retry timing is shown directly on every screen size.",
+      },
+      {
+        id: "stable-browser-alert-controls",
+        label: "FIXED",
+        pageHref: "/dashboard",
+        pageLabel: "Notifications",
+        iconSrc: "/icon-192x192.png",
+        title: "Stable Browser Alert Controls",
+        description:
+          "Notification switches stay inside their tracks, rapid enable clicks are deduplicated, and reconnecting preserves valid browser subscriptions through temporary status errors and key changes.",
+      },
+    ],
+  },
+  {
     id: "2026-07-19-platform-ownership-verification",
     publishedOn: "2026-07-19",
     headline: "Verified Codeforces and LeetCode Handles",

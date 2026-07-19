@@ -10,6 +10,7 @@ import { extractHandle } from "@/lib/parse-handle";
 import { Platform } from "@prisma/client";
 import { invalidatePlatformViews } from "@/lib/platform-cache";
 import {
+  INTERACTIVE_FAILURE_RETRY_MS,
   lockPlatformProfileTransaction,
   PlatformProfileNotLinkedError,
   PlatformSyncLeaseError,
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
   try {
     const data = await syncUserPlatform(userId, platform, handle.trim(), {
       allowProfileCreate,
+      interactiveFailureRetryMs: INTERACTIVE_FAILURE_RETRY_MS,
       minIntervalMs: USER_SYNC_COOLDOWN_MS,
       requireOwnershipVerification,
     });

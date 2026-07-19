@@ -3,6 +3,7 @@ import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { DashboardClient } from "./dashboard-client";
 import { fetchCombinedTopicRadar } from "@/lib/topic-radar";
+import { isPushConfigured } from "@/lib/push-notifications";
 
 export default async function DashboardPage() {
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -127,10 +128,8 @@ export default async function DashboardPage() {
       topicRadar={topicRadar}
       topicHandles={{ codeforces: codeforcesHandle, leetcode: leetcodeHandle }}
       vapidPublicKey={
-        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY &&
-        process.env.VAPID_PRIVATE_KEY &&
-        process.env.VAPID_SUBJECT
-          ? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+        isPushConfigured()
+          ? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? null
           : null
       }
       notificationPreferences={{

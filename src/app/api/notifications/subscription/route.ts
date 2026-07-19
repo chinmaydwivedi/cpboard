@@ -29,12 +29,15 @@ function isTrustedPushEndpoint(value: string) {
   }
 }
 
+const pushEndpointSchema = z
+  .string()
+  .url()
+  .max(1024)
+  .refine(isTrustedPushEndpoint, "Unsupported push service");
+
 const subscriptionSchema = z.object({
-  endpoint: z
-    .string()
-    .url()
-    .max(1024)
-    .refine(isTrustedPushEndpoint, "Unsupported push service"),
+  endpoint: pushEndpointSchema,
+  previousEndpoint: pushEndpointSchema.optional(),
   keys: z.object({
     p256dh: z.string().min(16).max(1024),
     auth: z.string().min(8).max(512),
@@ -72,6 +75,17 @@ export async function POST(req: NextRequest) {
           hashtext(${userId})
         )
       `;
+      if (
+        parsed.data.previousEndpoint &&
+        parsed.data.previousEndpoint !== parsed.data.endpoint
+      ) {
+        await tx.pushSubscription.deleteMany({
+          where: {
+            userId,
+            endpoint: parsed.data.previousEndpoint,
+          },
+        });
+      }
       const [existingSubscription, subscriptionCount] = await Promise.all([
         tx.pushSubscription.findUnique({
           where: { endpoint: parsed.data.endpoint },

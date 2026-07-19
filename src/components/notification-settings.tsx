@@ -44,6 +44,7 @@ type NotificationState =
   | "checking"
   | "idle"
   | "disconnected"
+  | "error"
   | "active"
   | "blocked"
   | "unavailable";
@@ -73,14 +74,22 @@ async function waitForActiveServiceWorker() {
 }
 
 async function getPushServiceWorker() {
-  const existing = await navigator.serviceWorker.getRegistration();
-  const registration =
-    existing ??
-    (await navigator.serviceWorker.register("/sw.js", {
-      scope: "/",
-      updateViaCache: "none",
-    }));
+  const registration = await navigator.serviceWorker.register("/sw.js", {
+    scope: "/",
+    updateViaCache: "none",
+  });
   return registration.active ? registration : waitForActiveServiceWorker();
+}
+
+function sameApplicationServerKey(
+  current: ArrayBuffer | null,
+  expected: ArrayBuffer,
+) {
+  if (!current) return false;
+  const currentBytes = new Uint8Array(current);
+  const expectedBytes = new Uint8Array(expected);
+  if (currentBytes.length !== expectedBytes.length) return false;
+  return currentBytes.every((value, index) => value === expectedBytes[index]);
 }
 
 function isIosDevice() {
@@ -132,8 +141,8 @@ function PreferenceSwitch({
       >
         <span
           className={cn(
-            "absolute top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform",
-            checked ? "translate-x-[17px]" : "translate-x-0.5",
+            "absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform",
+            checked ? "translate-x-[18px]" : "translate-x-0",
           )}
         />
       </span>
@@ -156,6 +165,7 @@ export function NotificationSettings({
   const [explanation, setExplanation] = useState("Checking this browser…");
   const [liveMessage, setLiveMessage] = useState("");
   const inspectionIdRef = useRef(0);
+  const enableInFlightRef = useRef(false);
   const preferenceRevisionRef = useRef(0);
   const initialPreferencesRef = useRef(initialPreferences);
   const {
@@ -168,6 +178,9 @@ export function NotificationSettings({
     const inspectionId = ++inspectionIdRef.current;
     const preferenceRevision = preferenceRevisionRef.current;
     const isCurrentInspection = () => inspectionIdRef.current === inspectionId;
+
+    setState("checking");
+    setExplanation("Checking this browser…");
 
     if (!vapidPublicKey) {
       setState("unavailable");
@@ -209,14 +222,20 @@ export function NotificationSettings({
         });
         const result = await response.json().catch(() => ({}));
         if (!isCurrentInspection()) return;
+        if (!response.ok) {
+          setState("error");
+          setExplanation(
+            result.error || "CPBoard could not confirm this browser connection.",
+          );
+          return;
+        }
         if (
-          response.ok &&
           result.preferences &&
           preferenceRevisionRef.current === preferenceRevision
         ) {
           setPreferences(result.preferences as NotificationPreferences);
         }
-        if (response.ok && result.subscribed) {
+        if (result.subscribed) {
           setState("active");
           setExplanation("This browser is connected and ready to receive alerts.");
         } else {
@@ -235,8 +254,10 @@ export function NotificationSettings({
       }
     } catch {
       if (!isCurrentInspection()) return;
-      setState("unavailable");
-      setExplanation("CPBoard could not prepare notifications in this browser.");
+      setState("error");
+      setExplanation(
+        "CPBoard could not prepare notifications right now. Retry the connection.",
+      );
     }
   }, [vapidPublicKey]);
 
@@ -267,7 +288,8 @@ export function NotificationSettings({
   ]);
 
   const enableNotifications = async () => {
-    if (!vapidPublicKey) return;
+    if (!vapidPublicKey || enableInFlightRef.current) return;
+    enableInFlightRef.current = true;
     setBusy("enable");
     try {
       let permission = Notification.permission;
@@ -290,14 +312,26 @@ export function NotificationSettings({
 
       const registration = await getPushServiceWorker();
       const existing = await registration.pushManager.getSubscription();
-      if (existing && state === "disconnected") await existing.unsubscribe();
+      let previousEndpoint: string | undefined;
+      const applicationServerKey = urlBase64ToArrayBuffer(vapidPublicKey);
+      const keyMatches = existing
+        ? sameApplicationServerKey(
+            existing.options.applicationServerKey,
+            applicationServerKey,
+          )
+        : false;
+      if (existing && !keyMatches) {
+        previousEndpoint = existing.endpoint;
+        await existing.unsubscribe();
+      }
       const nextSubscription =
-        state === "disconnected" || !existing
-          ? await registration.pushManager.subscribe({
+        existing && keyMatches
+          ? existing
+          : await registration.pushManager.subscribe({
               userVisibleOnly: true,
-              applicationServerKey: urlBase64ToArrayBuffer(vapidPublicKey),
-            })
-          : existing;
+              applicationServerKey,
+            });
+      setSubscription(nextSubscription);
       const serialized = nextSubscription.toJSON();
       if (!serialized.keys?.p256dh || !serialized.keys.auth) {
         throw new Error("Browser did not return subscription keys");
@@ -309,6 +343,7 @@ export function NotificationSettings({
         body: JSON.stringify({
           endpoint: nextSubscription.endpoint,
           keys: serialized.keys,
+          previousEndpoint,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -320,12 +355,13 @@ export function NotificationSettings({
       setLiveMessage("Browser notifications enabled.");
       toast.success("Browser notifications enabled");
     } catch (error) {
-      setState("disconnected");
+      setState("error");
       const message = error instanceof Error ? error.message : "Could not enable notifications";
       setExplanation(message);
       setLiveMessage(message);
       toast.error(message);
     } finally {
+      enableInFlightRef.current = false;
       setBusy(null);
     }
   };
@@ -411,12 +447,14 @@ export function NotificationSettings({
   };
 
   const active = state === "active";
-  const canEnable = state === "idle" || state === "disconnected";
+  const canEnable =
+    state === "idle" || state === "disconnected" || state === "error";
   const settingsDisabled = busy !== null || state === "checking";
   const status = {
     checking: "Checking",
     idle: "Off",
     disconnected: "Disconnected",
+    error: "Connection issue",
     active: "Active",
     blocked: "Blocked",
     unavailable: "Unavailable",
@@ -438,6 +476,7 @@ export function NotificationSettings({
                 "text-[10px]",
                 state === "active" && "border-primary/30 text-primary",
                 state === "blocked" && "border-amber-500/30 text-amber-500",
+                state === "error" && "border-amber-500/30 text-amber-500",
               )}
             >
               {state === "active" && <Check className="size-2.5" />}
@@ -452,14 +491,32 @@ export function NotificationSettings({
             size="sm"
             onClick={enableNotifications}
             disabled={busy !== null}
-            className="w-full sm:w-auto"
+            aria-busy={busy === "enable"}
+            className="w-full sm:min-w-36 sm:w-auto"
           >
-            {busy === "enable" ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <BellRing />
-            )}
-            {state === "disconnected" ? "Reconnect browser" : "Enable alerts"}
+            <span className="relative size-4 shrink-0" aria-hidden="true">
+              <BellRing
+                className={cn(
+                  "absolute inset-0 size-4 transition-opacity",
+                  busy === "enable" ? "opacity-0" : "opacity-100",
+                )}
+              />
+              <Loader2
+                className={cn(
+                  "absolute inset-0 size-4 transition-opacity",
+                  busy === "enable"
+                    ? "motion-safe:animate-spin opacity-100"
+                    : "opacity-0",
+                )}
+              />
+            </span>
+            {busy === "enable"
+              ? "Connecting…"
+              : state === "error"
+                ? "Retry connection"
+                : state === "disconnected"
+                  ? "Reconnect browser"
+                  : "Enable alerts"}
           </Button>
         )}
       </div>

@@ -2,6 +2,7 @@ import { Platform, Prisma } from "@prisma/client";
 import type { PlatformData } from "@/types";
 import {
   acquirePlatformSyncLease,
+  cancelPlatformSyncLease,
   completePlatformSyncLease,
   lockPlatformProfileTransaction,
   PlatformProfileNotLinkedError,
@@ -45,6 +46,8 @@ export type PlatformSyncOptions = {
   requireOwnershipVerification?: boolean;
   /** Durable cooldown shared by all serverless instances. */
   minIntervalMs?: number;
+  /** Explicit UI retries may recover a recorded failure after this interval. */
+  interactiveFailureRetryMs?: number;
 };
 
 function normalizeHandle(handle: string) {
@@ -75,6 +78,7 @@ export async function syncUserPlatform(
     userId,
     platform,
     minIntervalMs: options.minIntervalMs ?? USER_SYNC_COOLDOWN_MS,
+    interactiveFailureRetryMs: options.interactiveFailureRetryMs,
   });
 
   try {
@@ -264,11 +268,15 @@ export async function syncUserPlatform(
       !(normalizedError instanceof PlatformProfileNotLinkedError) &&
       !(normalizedError instanceof PlatformVerificationRequiredError) &&
       !(normalizedError instanceof PlatformHandleAlreadyClaimedError);
+    const shouldCancelLease =
+      normalizedError instanceof PlatformProfileNotLinkedError ||
+      normalizedError instanceof PlatformVerificationRequiredError;
     const cleanupTasks: Promise<unknown>[] = [
-      completePlatformSyncLease(
-        lease,
-        shouldBackoff ? { success: false, error: message } : { success: true },
-      ),
+      shouldBackoff
+        ? completePlatformSyncLease(lease, { success: false, error: message })
+        : shouldCancelLease
+          ? cancelPlatformSyncLease(lease)
+          : completePlatformSyncLease(lease, { success: true }),
     ];
     if (
       !(normalizedError instanceof PlatformProfileNotLinkedError) &&
