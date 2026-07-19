@@ -14,6 +14,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  safeLocalStorage,
+  safeSessionStorage,
+} from "@/lib/browser-storage";
 import { CHANGELOG_RELEASES, CURRENT_CHANGELOG } from "@/lib/changelog";
 import { cn } from "@/lib/utils";
 
@@ -24,15 +28,13 @@ const SNOOZE_UNTIL_KEY = "cpboard_whats_new_snooze_until";
 const SNOOZE_MS = 12 * 60 * 60 * 1000;
 
 function getSnoozeUntil(): number {
-  if (typeof window === "undefined") return 0;
-  const raw = window.sessionStorage.getItem(SNOOZE_UNTIL_KEY);
+  const raw = safeSessionStorage.getItem(SNOOZE_UNTIL_KEY);
   const parsed = raw ? Number(raw) : 0;
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function setSnooze() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(
+  safeSessionStorage.setItem(
     SNOOZE_UNTIL_KEY,
     String(Date.now() + SNOOZE_MS)
   );
@@ -61,7 +63,7 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
   useEffect(() => {
     if (pathname === "/changelog") return;
 
-    const seenRelease = localStorage.getItem(SEEN_RELEASE_KEY);
+    const seenRelease = safeLocalStorage.getItem(SEEN_RELEASE_KEY);
     if (seenRelease === activeReleaseId) return;
     if (Date.now() < getSnoozeUntil()) return;
 
@@ -70,9 +72,9 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
   }, [activeReleaseId, pathname]);
 
   const markSeenAndClose = () => {
-    localStorage.setItem(SEEN_RELEASE_KEY, activeReleaseId);
-    localStorage.setItem(SEEN_AT_KEY, new Date().toISOString());
-    window.sessionStorage.removeItem(SNOOZE_UNTIL_KEY);
+    safeLocalStorage.setItem(SEEN_RELEASE_KEY, activeReleaseId);
+    safeLocalStorage.setItem(SEEN_AT_KEY, new Date().toISOString());
+    safeSessionStorage.removeItem(SNOOZE_UNTIL_KEY);
     setOpen(false);
   };
 
@@ -82,9 +84,9 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
   };
 
   const openChangelog = () => {
-    localStorage.setItem(SEEN_RELEASE_KEY, activeReleaseId);
-    localStorage.setItem(SEEN_AT_KEY, new Date().toISOString());
-    window.sessionStorage.removeItem(SNOOZE_UNTIL_KEY);
+    safeLocalStorage.setItem(SEEN_RELEASE_KEY, activeReleaseId);
+    safeLocalStorage.setItem(SEEN_AT_KEY, new Date().toISOString());
+    safeSessionStorage.removeItem(SNOOZE_UNTIL_KEY);
     setOpen(false);
     router.push("/changelog");
   };
@@ -94,7 +96,7 @@ export function WhatsNewModal({ releaseId }: { releaseId: string }) {
       open={open}
       onOpenChange={(next) => {
         if (!next) {
-          const seenRelease = localStorage.getItem(SEEN_RELEASE_KEY);
+          const seenRelease = safeLocalStorage.getItem(SEEN_RELEASE_KEY);
           if (seenRelease !== activeReleaseId) {
             setSnooze();
           }

@@ -28,26 +28,28 @@ jobs:
           test -n "$CPBOARD_PRODUCTION_URL"
 
           platforms=(CODEFORCES LEETCODE ATCODER CODECHEF)
-          pids=()
+          declare -A sync_pids
           for platform in "${platforms[@]}"; do
+            # Do not automatically retry a cron request. The first invocation
+            # may have acquired its database lease before failing; an immediate
+            # retry would then return "already_running" and hide that failure.
             curl \
               --request POST \
               --fail \
               --silent \
               --show-error \
-              --retry 2 \
-              --retry-all-errors \
               --connect-timeout 10 \
               --max-time 70 \
               --header "Authorization: Bearer $CPBOARD_PLATFORM_SYNC_SECRET" \
               --output "/tmp/cpboard-sync-${platform}.json" \
               "$CPBOARD_PRODUCTION_URL/api/cron/sync-all?platform=$platform" &
-            pids+=("$!")
+            sync_pids["$platform"]="$!"
           done
 
           failed=0
-          for pid in "${pids[@]}"; do
-            if ! wait "$pid"; then
+          for platform in "${platforms[@]}"; do
+            if ! wait "${sync_pids[$platform]}"; then
+              echo "::error title=Provider transport failure::$platform maintenance request failed"
               failed=1
             fi
           done
@@ -55,11 +57,71 @@ jobs:
           for platform in "${platforms[@]}"; do
             result="/tmp/cpboard-sync-${platform}.json"
             if test -s "$result"; then
-              jq -c '{platform, jobSkipped, selected, attempted, successful, failed, skipped, remainingDue, durationMs, reason}' "$result"
-              if ! jq -e '(.jobSkipped == true) or (.attempted == 0) or (.successful > 0) or (.failed == 0)' "$result" > /dev/null; then
+              if ! jq -e --arg platform "$platform" '
+                def nonnegative_integer:
+                  type == "number" and . >= 0 and floor == .;
+                type == "object"
+                and .platform == $platform
+                and ((.jobSkipped == null) or (.jobSkipped | type == "boolean"))
+                and (.selected | nonnegative_integer)
+                and (.attempted | nonnegative_integer)
+                and (.successful | nonnegative_integer)
+                and (.failed | nonnegative_integer)
+                and (.skipped | nonnegative_integer)
+                and (.deferred | nonnegative_integer)
+                and ((.remainingDue == null) or (.remainingDue | nonnegative_integer))
+                and (.durationMs | nonnegative_integer)
+                and (.failureSummary | type == "object")
+                and (.failureSummary.transient | nonnegative_integer)
+                and (.failureSummary.transport | nonnegative_integer)
+                and (.failureSummary.malformed | nonnegative_integer)
+                and (.failureSummary.sustained | nonnegative_integer)
+                and (.failureSummary.maxConsecutiveFailures | nonnegative_integer)
+                and .attempted == (.successful + .failed + .skipped)
+                and .selected == (.attempted + .deferred)
+                and .failed == (
+                  .failureSummary.transient
+                  + .failureSummary.transport
+                  + .failureSummary.malformed
+                )
+                and .failureSummary.sustained <= .failed
+                and (
+                  (.failed == 0 and .failureSummary.maxConsecutiveFailures == 0)
+                  or (.failed > 0 and .failureSummary.maxConsecutiveFailures >= 1)
+                )
+                and (
+                  .failureSummary.sustained == 0
+                  or .failureSummary.maxConsecutiveFailures >= 2
+                )
+              ' "$result" > /dev/null; then
+                echo "::error title=Malformed provider response::$platform returned an invalid maintenance response"
                 failed=1
+                continue
+              fi
+
+              jq -c '{platform, jobSkipped, selected, attempted, successful, failed, skipped, deferred, remainingDue, durationMs, reason, failureSummary}' "$result"
+
+              transport_failures="$(jq -r '.failureSummary.transport' "$result")"
+              malformed_failures="$(jq -r '.failureSummary.malformed' "$result")"
+              sustained_failures="$(jq -r '.failureSummary.sustained' "$result")"
+              transient_failures="$(jq -r '.failureSummary.transient' "$result")"
+              failed_attempts="$(jq -r '.failed' "$result")"
+              successful_attempts="$(jq -r '.successful' "$result")"
+
+              if test "$malformed_failures" -gt 0; then
+                echo "::error title=Malformed provider data::$platform recorded $malformed_failures malformed response(s)"
+                failed=1
+              elif test "$sustained_failures" -gt 0; then
+                echo "::error title=Sustained provider degradation::$platform has $sustained_failures repeatedly failing profile(s)"
+                failed=1
+              elif test "$failed_attempts" -ge 2 && test "$successful_attempts" -eq 0; then
+                echo "::error title=Systemic provider degradation::$platform failed all $failed_attempts profile attempts"
+                failed=1
+              elif test "$transport_failures" -gt 0 || test "$transient_failures" -gt 0; then
+                echo "::warning title=First-occurrence provider failure::$platform recorded $transport_failures transport and $transient_failures transient failure(s); the next eligible retry will confirm health"
               fi
             else
+              echo "::error title=Missing provider response::$platform did not return a maintenance response"
               failed=1
             fi
           done
@@ -69,8 +131,6 @@ jobs:
             --fail \
             --silent \
             --show-error \
-            --retry 2 \
-            --retry-all-errors \
             --connect-timeout 10 \
             --max-time 70 \
             --header "Authorization: Bearer $CPBOARD_PLATFORM_SYNC_SECRET" \
@@ -83,8 +143,6 @@ jobs:
             --fail \
             --silent \
             --show-error \
-            --retry 2 \
-            --retry-all-errors \
             --connect-timeout 10 \
             --max-time 70 \
             --header "Authorization: Bearer $CPBOARD_NOTIFICATION_CRON_SECRET" \

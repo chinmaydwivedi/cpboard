@@ -8,8 +8,10 @@ import {
 import { LeaderboardClient } from "./leaderboard-client";
 import type { LeaderboardEntry, WeeklyLeader } from "@/types";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+import { withReadRetry } from "@/lib/read-retry";
 
 export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 function getCurrentWeek() {
   const now = new Date();
@@ -36,9 +38,9 @@ const getLeaderboard = unstable_cache(
     entries: LeaderboardEntry[];
     weeklyLeader: WeeklyLeader | null;
   }> => {
-    try {
-      const week = getCurrentWeek();
-      const users = await prisma.user.findMany({
+    const week = getCurrentWeek();
+    const users = await withReadRetry(() =>
+      prisma.user.findMany({
         select: {
           id: true,
           username: true,
@@ -65,41 +67,42 @@ const getLeaderboard = unstable_cache(
           onboardingComplete: true,
           platformProfiles: { some: { verified: true } },
         },
-      });
+      }),
+    );
 
-      const entries: LeaderboardEntry[] = users.map((user) => ({
-        userId: user.id,
-        username: user.username,
-        name: user.name,
-        avatarUrl: user.avatarUrl,
-        universityShortName: user.university.shortName,
-        universityName: user.university.name,
-        totalSolved: computeTotalSolved(user.platformProfiles),
-        bestRating: computeBestRating(user.platformProfiles),
-        longestPotdStreak: 0,
-        platforms: user.platformProfiles.map((p) => ({
-          platform: p.platform,
-          handle: p.handle,
-          rating: p.rating,
-          maxRating: p.maxRating,
-          problemsSolved: p.problemsSolved,
-          rank: p.rank,
-        })),
-        rank: 0,
-      }));
+    const entries: LeaderboardEntry[] = users.map((user) => ({
+      userId: user.id,
+      username: user.username,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+      universityShortName: user.university.shortName,
+      universityName: user.university.name,
+      totalSolved: computeTotalSolved(user.platformProfiles),
+      bestRating: computeBestRating(user.platformProfiles),
+      longestPotdStreak: 0,
+      platforms: user.platformProfiles.map((p) => ({
+        platform: p.platform,
+        handle: p.handle,
+        rating: p.rating,
+        maxRating: p.maxRating,
+        problemsSolved: p.problemsSolved,
+        rank: p.rank,
+      })),
+      rank: 0,
+    }));
 
-      entries.sort(compareLeaderboardScores);
-      entries.forEach((entry, index) => (entry.rank = index + 1));
+    entries.sort(compareLeaderboardScores);
+    entries.forEach((entry, index) => (entry.rank = index + 1));
 
-      const weeklyWinner = [...users]
-        .map((user) => {
-          const verifiedPlatforms = new Set(
-            user.platformProfiles.map((profile) => profile.platform),
-          );
-          const verifiedActivity = user.dailyActivities.filter((activity) =>
-            verifiedPlatforms.has(activity.platform),
-          );
-          return {
+    const weeklyWinner = [...users]
+      .map((user) => {
+        const verifiedPlatforms = new Set(
+          user.platformProfiles.map((profile) => profile.platform),
+        );
+        const verifiedActivity = user.dailyActivities.filter((activity) =>
+          verifiedPlatforms.has(activity.platform),
+        );
+        return {
           username: user.username,
           name: user.name,
           universityShortName: user.university.shortName,
@@ -115,38 +118,32 @@ const getLeaderboard = unstable_cache(
             return totals;
           }, {}),
           weekLabel: week.weekLabel,
-          };
-        })
-        .sort(
-          (a, b) =>
-            b.submissionCount - a.submissionCount ||
-            a.username.localeCompare(b.username),
-        )[0];
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.submissionCount - a.submissionCount ||
+          a.username.localeCompare(b.username),
+      )[0];
 
-      return {
-        entries,
-        weeklyLeader:
-          weeklyWinner && weeklyWinner.submissionCount > 0 ? weeklyWinner : null,
-      };
-    } catch {
-      return { entries: [], weeklyLeader: null };
-    }
+    return {
+      entries,
+      weeklyLeader:
+        weeklyWinner && weeklyWinner.submissionCount > 0 ? weeklyWinner : null,
+    };
   },
   ["global-leaderboard-v2"],
   { revalidate: 60, tags: [CACHE_TAGS.leaderboard] },
 );
 
 const getUniversities = unstable_cache(
-  async () => {
-    try {
-      return await prisma.university.findMany({
+  async () =>
+    withReadRetry(() =>
+      prisma.university.findMany({
         select: { shortName: true, name: true },
         orderBy: { name: "asc" },
-      });
-    } catch {
-      return [];
-    }
-  },
+      }),
+    ),
   ["leaderboard-universities"],
   { revalidate: 300, tags: [CACHE_TAGS.universities] },
 );

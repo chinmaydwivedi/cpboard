@@ -1,3 +1,5 @@
+import { unstable_cache } from "next/cache";
+
 export type Contest = {
   id: string;
   title: string;
@@ -78,71 +80,91 @@ function isContestRow(value: unknown): value is ContestRow {
 const CONTESTS_API = "https://wbtxzfzazqbmqrwdehwm.supabase.co/rest/v1/contests";
 const CONTESTS_API_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndidHh6ZnphenFibXFyd2RlaHdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3OTE5MDgsImV4cCI6MjA4MTM2NzkwOH0.orAbLkg-K5IVoHwG-PKYwNroA_JpB4zV7iNjVqExXqQ";
+const CONTEST_CACHE_SECONDS = 30 * 60;
+
+async function requestContestSnapshot(): Promise<Contest[]> {
+  const requestedAt = new Date();
+  const queryStart = new Date(
+    Math.floor(requestedAt.getTime() / 1_800_000) * 1_800_000,
+  );
+  const until = new Date(queryStart.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const query = new URLSearchParams({
+    select: "id,title,url,platform,start_time,end_time,duration_seconds",
+    start_time: `gte.${queryStart.toISOString()}`,
+    and: `(start_time.lte.${until.toISOString()})`,
+    order: "start_time.asc",
+    limit: "300",
+  });
+  const response = await fetch(`${CONTESTS_API}?${query}`, {
+    headers: { apikey: CONTESTS_API_KEY },
+    signal: AbortSignal.timeout(10_000),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Contest provider returned an unsuccessful response");
+  }
+
+  const payload: unknown = await response.json();
+  if (!Array.isArray(payload)) {
+    throw new Error("Contest provider returned an invalid payload");
+  }
+
+  const rows = payload.filter(isContestRow);
+  if (rows.length !== payload.length) {
+    throw new Error("Contest provider returned invalid contest data");
+  }
+
+  const contests = rows.map((contest) => {
+    const startTime = new Date(contest.start_time).getTime();
+    const endTime = new Date(contest.end_time).getTime();
+    if (
+      !Number.isFinite(startTime) ||
+      !Number.isFinite(endTime) ||
+      endTime <= startTime
+    ) {
+      throw new Error("Contest provider returned invalid schedule data");
+    }
+    return {
+      id: contest.id,
+      title: contest.title.trim(),
+      url: contest.url,
+      platform: contest.platform,
+      startTime: contest.start_time,
+      endTime: contest.end_time,
+      durationSeconds: contest.duration_seconds,
+    };
+  });
+
+  return contests.filter(
+    (contest, index, all) =>
+      all.findIndex((candidate) => candidate.id === contest.id) === index,
+  );
+}
+
+const getCachedContestSnapshot = unstable_cache(
+  requestContestSnapshot,
+  ["upcoming-contest-feed-v2"],
+  { revalidate: CONTEST_CACHE_SECONDS },
+);
+
+function onlyUpcomingContests(contests: Contest[]) {
+  const now = Date.now();
+  return contests.filter(
+    (contest) => new Date(contest.startTime).getTime() >= now,
+  );
+}
+
 export async function getUpcomingContestFeed({
   fresh = false,
 }: { fresh?: boolean } = {}): Promise<ContestFeedResult> {
   try {
-    const requestedAt = new Date();
-    const queryStart = fresh
-      ? requestedAt
-      : new Date(Math.floor(requestedAt.getTime() / 1_800_000) * 1_800_000);
-    const until = new Date(queryStart.getTime() + 60 * 24 * 60 * 60 * 1000);
-    const query = new URLSearchParams({
-      select: "id,title,url,platform,start_time,end_time,duration_seconds",
-      start_time: `gte.${queryStart.toISOString()}`,
-      and: `(start_time.lte.${until.toISOString()})`,
-      order: "start_time.asc",
-      limit: "300",
-    });
-    const response = await fetch(`${CONTESTS_API}?${query}`, {
-      headers: { apikey: CONTESTS_API_KEY },
-      signal: AbortSignal.timeout(10_000),
-      ...(fresh ? { cache: "no-store" as const } : { next: { revalidate: 1800 } }),
-    });
-
-    if (!response.ok) {
-      if (fresh) {
-        console.warn("Contest refresh failed", response.status);
-      }
-      return { contests: [], available: false };
-    }
-    const payload: unknown = await response.json();
-    if (!Array.isArray(payload)) {
-      if (fresh) console.warn("Contest refresh returned an invalid payload");
-      return { contests: [], available: false };
-    }
-    const rows = payload.filter(isContestRow);
-    if (payload.length > 0 && rows.length === 0) {
-      if (fresh) console.warn("Contest refresh returned no valid rows");
-      return { contests: [], available: false };
-    }
-
-    const contests = rows
-      .filter(
-        (contest) =>
-          SUPPORTED_PLATFORMS.has(contest.platform) &&
-          Number.isFinite(new Date(contest.start_time).getTime()) &&
-          Number.isFinite(new Date(contest.end_time).getTime()) &&
-          new Date(contest.end_time).getTime() >
-            new Date(contest.start_time).getTime() &&
-          new Date(contest.start_time).getTime() >= requestedAt.getTime(),
-      )
-      .map((contest) => ({
-        id: contest.id,
-        title: contest.title.trim(),
-        url: contest.url,
-        platform: contest.platform,
-        startTime: contest.start_time,
-        endTime: contest.end_time,
-        durationSeconds: contest.duration_seconds,
-      }))
-      .filter(
-        (contest, index, all) =>
-          all.findIndex((candidate) => candidate.id === contest.id) === index,
-      );
-    return { contests, available: true };
-  } catch (error) {
-    if (fresh) console.error("Contest refresh failed", error);
+    const contests = fresh
+      ? await requestContestSnapshot()
+      : await getCachedContestSnapshot();
+    return { contests: onlyUpcomingContests(contests), available: true };
+  } catch {
+    if (fresh) console.warn("Contest refresh is temporarily unavailable");
     return { contests: [], available: false };
   }
 }
@@ -150,5 +172,9 @@ export async function getUpcomingContestFeed({
 export async function getUpcomingContests(
   options: { fresh?: boolean } = {},
 ): Promise<Contest[]> {
-  return (await getUpcomingContestFeed(options)).contests;
+  const feed = await getUpcomingContestFeed(options);
+  if (!feed.available) {
+    throw new Error("Contest schedule is temporarily unavailable");
+  }
+  return feed.contests;
 }

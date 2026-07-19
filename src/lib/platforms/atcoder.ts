@@ -35,6 +35,50 @@ type AtCoderAcceptedCount = {
   count?: number;
 };
 
+type VerifiedAtCoderProfile = {
+  canonicalHandle: string;
+  html: string;
+  exists: true;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isAtCoderHistoryEntry(value: unknown): value is AtCoderHistoryEntry {
+  return (
+    isRecord(value) &&
+    typeof value.IsRated === "boolean" &&
+    typeof value.NewRating === "number" &&
+    Number.isFinite(value.NewRating) &&
+    value.NewRating >= 0
+  );
+}
+
+function isAtCoderSubmission(
+  value: unknown,
+  handle: string,
+): value is AtCoderSubmission {
+  const latestReasonableTimestamp = Math.floor(
+    (Date.now() + 24 * 60 * 60 * 1_000) / 1_000,
+  );
+  return (
+    isRecord(value) &&
+    Number.isSafeInteger(value.id) &&
+    Number(value.id) > 0 &&
+    Number.isSafeInteger(value.epoch_second) &&
+    Number(value.epoch_second) > 0 &&
+    Number(value.epoch_second) <= latestReasonableTimestamp &&
+    typeof value.problem_id === "string" &&
+    value.problem_id.length > 0 &&
+    typeof value.contest_id === "string" &&
+    value.contest_id.length > 0 &&
+    typeof value.user_id === "string" &&
+    value.user_id.toLowerCase() === handle.toLowerCase() &&
+    typeof value.result === "string"
+  );
+}
+
 function parseIntSafe(value: string | null | undefined): number {
   if (!value) return 0;
   const n = parseInt(value.replace(/,/g, "").trim(), 10);
@@ -50,21 +94,70 @@ function matchText(html: string, pattern: RegExp): string | null {
   return m ? m.replace(/\s+/g, " ").trim() : null;
 }
 
-async function fetchAtCoderProfilePage(handle: string): Promise<string | null> {
+async function fetchAtCoderProfilePage(
+  handle: string,
+): Promise<VerifiedAtCoderProfile> {
+  let response: Response;
   try {
-    const res = await fetch(`${ATCODER_BASE}/users/${encodeURIComponent(handle)}?lang=en`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(12_000),
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        Accept: "text/html,application/xhtml+xml",
+    response = await fetch(
+      `${ATCODER_BASE}/users/${encodeURIComponent(handle)}?lang=en`,
+      {
+        cache: "no-store",
+        signal: AbortSignal.timeout(12_000),
+        headers: {
+          "User-Agent": "Mozilla/5.0",
+          Accept: "text/html,application/xhtml+xml",
+        },
       },
-    });
-    if (!res.ok) return null;
-    return await res.text();
+    );
   } catch {
-    return null;
+    throw new Error("AtCoder profile is temporarily unavailable");
   }
+
+  if (response.status === 404) {
+    throw new ProviderProfileNotFoundError();
+  }
+  if (!response.ok) {
+    throw new Error("AtCoder profile is temporarily unavailable");
+  }
+
+  let html: string;
+  try {
+    html = await response.text();
+  } catch {
+    throw new Error("AtCoder profile is temporarily unavailable");
+  }
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  let returnedHandle: string | null = null;
+  try {
+    const finalUrl = new URL(response.url);
+    const pathSegments = finalUrl.pathname.split("/").filter(Boolean);
+    if (
+      finalUrl.hostname === "atcoder.jp" &&
+      pathSegments.length === 2 &&
+      pathSegments[0] === "users"
+    ) {
+      returnedHandle = decodeURIComponent(pathSegments[1]);
+    }
+  } catch {
+    returnedHandle = null;
+  }
+  const titleHandle = html.match(
+    /<title>\s*([^<]+?)\s+-\s+AtCoder\s*<\/title>/i,
+  )?.[1];
+  if (
+    !contentType.includes("text/html") ||
+    returnedHandle?.toLowerCase() !== handle.toLowerCase() ||
+    titleHandle?.trim().toLowerCase() !== handle.toLowerCase()
+  ) {
+    throw new Error("AtCoder profile returned invalid data");
+  }
+
+  return {
+    canonicalHandle: titleHandle.trim(),
+    html,
+    exists: true,
+  };
 }
 
 function parseAtCoderProfileStats(html: string): AtCoderProfileStats {
@@ -94,8 +187,9 @@ function parseAtCoderProfileStats(html: string): AtCoderProfileStats {
 }
 
 async function fetchAtCoderHistory(handle: string): Promise<AtCoderHistoryEntry[]> {
+  let res: Response;
   try {
-    const res = await fetch(`${ATCODER_BASE}/users/${encodeURIComponent(handle)}/history/json`, {
+    res = await fetch(`${ATCODER_BASE}/users/${encodeURIComponent(handle)}/history/json`, {
       cache: "no-store",
       signal: AbortSignal.timeout(12_000),
       headers: {
@@ -103,15 +197,28 @@ async function fetchAtCoderHistory(handle: string): Promise<AtCoderHistoryEntry[
         Accept: "application/json, text/plain, */*",
       },
     });
-    if (!res.ok) return [];
-    const payload = await res.json();
-    return Array.isArray(payload) ? (payload as AtCoderHistoryEntry[]) : [];
   } catch {
     return [];
   }
+  if (!res.ok) return [];
+
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    throw new Error("AtCoder history returned invalid data");
+  }
+  if (!Array.isArray(payload) || !payload.every(isAtCoderHistoryEntry)) {
+    throw new Error("AtCoder history returned invalid data");
+  }
+  return payload;
 }
 
-async function fetchAcceptedCount(handle: string, startedAt: number) {
+async function fetchAcceptedCount(
+  handle: string,
+  startedAt: number,
+  profile: VerifiedAtCoderProfile,
+) {
   const remainingMs = PROVIDER_DEADLINE_MS - (Date.now() - startedAt);
   if (remainingMs < 1_000) {
     throw new Error("AtCoder data fetch timed out");
@@ -137,8 +244,11 @@ async function fetchAcceptedCount(handle: string, startedAt: number) {
       },
     },
   ).catch(() => null);
-  if (response?.status === 404) {
-    throw new ProviderProfileNotFoundError();
+  if (response?.status === 404 && profile.exists) {
+    // Kenkoooo has no ac_rank row for a valid account with zero accepted
+    // problems. The official AtCoder page above is the source of truth for
+    // account existence, so this provider-specific 404 means a count of zero.
+    return 0;
   }
   if (!response?.ok) {
     throw new Error("AtCoder accepted count is temporarily unavailable");
@@ -199,7 +309,12 @@ async function fetchRecentSubmissions(
     let batch: AtCoderSubmission[];
     try {
       const parsed = await res.json();
-      if (!Array.isArray(parsed)) {
+      if (
+        !Array.isArray(parsed) ||
+        !parsed.every((submission) =>
+          isAtCoderSubmission(submission, handle),
+        )
+      ) {
         throw new Error("AtCoder submissions returned invalid data");
       }
       batch = parsed as AtCoderSubmission[];
@@ -226,19 +341,16 @@ async function fetchRecentSubmissions(
 
 export async function fetchAtcoderData(handle: string): Promise<PlatformData> {
   const startedAt = Date.now();
-  const profilePromise = fetchAtCoderProfilePage(handle);
-  const historyPromise = fetchAtCoderHistory(handle);
-  const acceptedCount = await fetchAcceptedCount(handle, startedAt);
-  const submissions = await fetchRecentSubmissions(handle, startedAt);
-  const [profileHtml, history] = await Promise.all([
-    profilePromise,
-    historyPromise,
+  // Check the official profile first. Third-party APIs legitimately return
+  // 404 for users who exist but have not solved a problem yet.
+  const profile = await fetchAtCoderProfilePage(handle);
+  const canonicalHandle = profile.canonicalHandle;
+  const [history, acceptedCount, submissions] = await Promise.all([
+    fetchAtCoderHistory(canonicalHandle),
+    fetchAcceptedCount(canonicalHandle, startedAt, profile),
+    fetchRecentSubmissions(canonicalHandle, startedAt),
   ]);
-
-  if (!profileHtml) {
-    throw new ProviderProfileNotFoundError();
-  }
-  const profileStats = parseAtCoderProfileStats(profileHtml);
+  const profileStats = parseAtCoderProfileStats(profile.html);
 
   const ratedRatings = history
     .filter((h) => h?.IsRated && typeof h.NewRating === "number")
@@ -278,7 +390,7 @@ export async function fetchAtcoderData(handle: string): Promise<PlatformData> {
   );
 
   return {
-    handle,
+    handle: canonicalHandle,
     rating,
     maxRating,
     problemsSolved: acceptedCount,

@@ -15,8 +15,8 @@ A multi-university competitive programming leaderboard that aggregates profiles 
 - **Weekly standout** — Cross-platform recognition based on accepted/newly solved activity each week
 - **University email verification** — Students sign in with magic links sent to a registered university email domain
 - **Multi-university support** — Admin-configurable email domains for any university
-- **Scheduled updates** — Provider-isolated lanes run every ten minutes and refresh each healthy profile on a 12-hour eligibility cycle
-- **Optimized update pipeline** — Parallel provider lanes, durable leases, bulk activity writes, precise cache invalidation, and deferred telemetry
+- **Scheduled updates** — Provider-isolated lanes are requested every ten minutes and refresh each healthy profile on a 12-hour eligibility cycle
+- **Optimized update pipeline** — Parallel provider lanes, duration-bounded catch-up batches, durable leases, bulk activity writes, precise cache invalidation, and aggregate telemetry
 - **Defense in depth** — CSP, same-origin mutation checks, distributed abuse limits, bounded uploads, isolated job secrets, and automated security gates
 
 ## Tech Stack
@@ -87,7 +87,7 @@ npx web-push generate-vapid-keys
 
 Add the generated public and private keys to the matching environment variables above, and set `VAPID_SUBJECT` to a valid `mailto:` or `https:` contact URI. Never expose `VAPID_PRIVATE_KEY` to the browser or commit it to source control.
 
-Notifications are opt-in. Each browser must be enabled separately from the Dashboard, while alert types and contest lead time follow the signed-in account. Contest reminders are checked every ten minutes, so the selected 15, 30, or 60 minute lead time is approximate. Web Push requires HTTPS in production; `localhost` is supported for local development. On iOS, users must add CPBoard to the Home Screen before enabling notifications.
+Notifications are opt-in. Each browser must be enabled separately from the Dashboard, while alert types and contest lead time follow the signed-in account. Contest reminders are scheduled for a best-effort check every ten minutes, so the selected 15, 30, or 60 minute lead time is approximate. Web Push requires HTTPS in production; `localhost` is supported for local development. On iOS, users must add CPBoard to the Home Screen before enabling notifications.
 
 The notification worker retries temporary delivery failures, removes expired browser subscriptions, suppresses duplicate alerts, and ignores contest reminders that arrive after a contest starts. If a contest is rescheduled, its new start time can produce a corrected reminder.
 
@@ -150,9 +150,11 @@ src/
 │   ├── platforms/                  # CF, LC, AC, CC API fetchers
 │   ├── auth.ts                     # NextAuth configuration
 │   ├── cache-tags.ts               # Shared cache invalidation keys
+│   ├── browser-storage.ts          # Exception-safe browser preference storage
 │   ├── codeforces-api.ts            # Shared official-API rate-limit queue
 │   ├── platform-verification.ts     # Submission challenge issuance and checks
 │   ├── push-notifications.ts       # Push delivery, contest reminders, and leader alerts
+│   ├── read-retry.ts               # One bounded retry for idempotent database reads
 │   ├── scoring.ts                  # Leaderboard scoring logic
 │   ├── session.ts                  # Request-scoped session deduplication
 │   └── prisma.ts                   # Database client
@@ -168,9 +170,9 @@ src/
 5. Keep the production build command as `npm run build`
 6. Store the owner/unpooled URL only as the `CPBOARD_MIGRATION_DATABASE_URL` secret in the protected GitHub `production` environment. Before promotion, create a Neon restore point and manually run the **Production database migration** workflow; its install step never receives the owner credential
 7. Copy `PLATFORM_SYNC_CRON_SECRET` to the Actions secret `CPBOARD_PLATFORM_SYNC_SECRET`, copy `NOTIFICATION_CRON_SECRET` to `CPBOARD_NOTIFICATION_CRON_SECRET`, and set `CPBOARD_PRODUCTION_URL` to the stable production origin without a trailing slash
-8. The maintenance workflow starts all four provider lanes in parallel every ten minutes, then runs notifications against the newly refreshed scores. The separate platform workflow is a manual recovery path
+8. The maintenance workflow requests all four provider lanes in parallel on a ten-minute schedule, then runs notifications against the newly refreshed scores. The separate platform workflow is a manual recovery path
 
-The schedule lives in GitHub Actions because this project currently deploys on Vercel Hobby, whose cron jobs cannot run every ten minutes. Codeforces, LeetCode, AtCoder, and CodeChef use independent Vercel invocations and database job leases, so a slow lane cannot block the others. Each successful profile becomes eligible again after 12 hours; failures use bounded backoff. Missing or deleted profiles are skipped without misreporting a provider outage, while genuine upstream failures still fail the lane visibly. The workflow then refreshes contests, sends due reminders, and checks for a new global leader.
+The schedule lives in GitHub Actions because this project currently deploys on Vercel Hobby, whose cron jobs cannot run every ten minutes. GitHub schedules are best-effort and can be delayed or dropped under load; the ten-minute expression is a request, not a timing guarantee. Codeforces, LeetCode, AtCoder, and CodeChef use independent Vercel invocations and database job leases, so a slow lane cannot block the others. Each invocation drains a provider-specific, duration-bounded batch, allowing a delayed run to catch up without exceeding function limits or creating an uncontrolled burst. Each successful profile becomes eligible again after 12 hours, while failures use bounded backoff. Missing or deleted profiles are skipped without misreporting a provider outage. A first isolated transient failure is recorded as a warning; malformed responses, repeated failure streaks, and systemic provider failures still fail the lane visibly. The workflow then refreshes contests, sends due reminders, and checks for a new global leader.
 
 `vercel.json` pins server functions to Singapore (`sin1`) to match the current Neon `ap-southeast-1` database. Change both together if the database moves regions.
 
@@ -182,13 +184,15 @@ After deployment, sign in on an HTTPS browser, enable notifications from the Das
 
 - User-triggered platform syncs always request fresh upstream data and apply activity history in one database transaction.
 - “Sync all” uses bounded concurrency plus database-backed per-profile leases, so parallel clicks and serverless instances cannot create an uncontrolled request burst.
-- Landing stats, global rankings, CP rankings, and topic radar results use explicit caches. Successful syncs invalidate only the affected data, while cron refreshes use stale-while-revalidate behavior.
+- Landing stats, global rankings, CP rankings, and topic radar results use explicit caches. Idempotent public database reads retry once, and a failed cache revalidation throws so Next.js keeps the last successful data instead of caching a false empty result. Successful syncs invalidate only the affected data, while cron refreshes use stale-while-revalidate behavior.
 - Slow upstream requests have deadlines so one provider cannot hold an entire sync or scheduled invocation open indefinitely.
+- Provider payloads are checked for the requested identity and the core fields used by CPBoard before a database write; malformed data fails closed instead of becoming plausible zero values.
 - Analytics, profile-view counters, tours, and large chart libraries stay outside the critical response or initial JavaScript path where possible.
 - Codeforces work uses both a bounded in-process queue and a Neon-backed request lease. Sync, verification, POTD, and recommendation requests therefore respect the provider spacing across serverless instances.
-- Failed scheduled syncs receive exponential backoff, while successful profiles rotate on a 12-hour eligibility window so one broken handle cannot starve the rest of the queue.
+- Failed scheduled syncs receive exponential backoff, while successful profiles rotate on a 12-hour eligibility window so one broken handle cannot starve the rest of the queue. A bounded confirmation slot prioritizes the next eligible retry of a transient failure without allowing missing profiles to monopolize the batch. Duration-aware multi-wave batches help the next invocation recover backlog after a delayed GitHub schedule.
 - Lease tokens fence every provider write: a disconnected or replaced handle cannot be overwritten when an older network response arrives late.
-- AtCoder and Codeforces requests use shared Neon-backed pacing, so independent serverless instances still respect upstream limits.
+- AtCoder validates account existence against the official profile page before consulting Kenkoooo; a missing accepted-count row for a proven account correctly means zero solved problems. AtCoder and Codeforces requests use shared Neon-backed pacing, so independent serverless instances still respect upstream limits.
+- Theme, What’s New, and walkthrough preferences use exception-safe browser storage access, with a current-tab memory fallback when persistence is blocked or full.
 
 ## Security Model
 
@@ -216,7 +220,7 @@ After deployment, sign in on an HTTPS browser, enable notifications from the Das
 |----------|-----|-----------|
 | Codeforces | [Official API](https://codeforces.com/apiHelp) — `user.info`, `user.status`, `user.rating` | 1 req/2s |
 | LeetCode | GraphQL at `leetcode.com/graphql` — `matchedUser`, `recentAcSubmissionList`, `userContestRanking`, `userCalendar` | Undocumented; requests use deadlines and user-triggered checks |
-| AtCoder | [Kenkoooo API](https://github.com/kenkoooo/AtCoderProblems) — `v3/user/ac_rank` plus retained `v3/user/submissions` activity | Shared pacing of at least 1.1s between requests |
+| AtCoder | Official profile/history for identity and rating; [Kenkoooo API](https://github.com/kenkoooo/AtCoderProblems) for `v3/user/ac_rank` plus retained `v3/user/submissions` activity | Shared Kenkoooo pacing of at least 1.1s between requests |
 | CodeChef | [CP Rating API](https://cp-rating-api.vercel.app) — `/codechef/{username}` | Generous |
 
 ## License

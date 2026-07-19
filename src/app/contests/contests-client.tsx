@@ -1,8 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { CalendarPlus, Clock3, ExternalLink, Radio } from "lucide-react";
+import {
+  CalendarPlus,
+  Clock3,
+  ExternalLink,
+  Radio,
+  RefreshCw,
+  WifiOff,
+} from "lucide-react";
 import type { Contest } from "@/lib/contests";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const PLATFORM_META: Record<string, { name: string; short: string; color: string }> = {
@@ -51,7 +59,13 @@ function googleCalendarUrl(contest: Contest) {
   return `https://calendar.google.com/calendar/render?${params}`;
 }
 
-export function ContestsClient({ contests }: { contests: Contest[] }) {
+export function ContestsClient({
+  contests,
+  available,
+}: {
+  contests: Contest[];
+  available: boolean;
+}) {
   const platforms = useMemo(() => [...new Set(contests.map((contest) => contest.platform))], [contests]);
   const [selected, setSelected] = useState<string[]>(platforms);
   const previousPlatformsRef = useRef(platforms);
@@ -109,6 +123,35 @@ export function ContestsClient({ contests }: { contests: Contest[] }) {
         : [...current, platform],
     );
   };
+
+  if (!available) {
+    return (
+      <div
+        role="status"
+        className="rounded-lg border border-border/60 bg-card/50 px-6 py-12 text-center"
+      >
+        <span className="mx-auto flex size-10 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+          <WifiOff className="size-4" aria-hidden="true" />
+        </span>
+        <h2 className="mt-4 text-sm font-semibold">
+          Contest schedule is temporarily unavailable
+        </h2>
+        <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
+          The contest provider could not be reached. This is different from an
+          empty schedule, and no cached contests were replaced.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-5"
+          onClick={() => window.location.reload()}
+        >
+          <RefreshCw aria-hidden="true" />
+          Try again
+        </Button>
+      </div>
+    );
+  }
 
   if (!mounted || now === 0) {
     return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect } from "react";
+import { safeLocalStorage } from "@/lib/browser-storage";
 
 type Theme = "dark";
 
@@ -18,7 +19,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const root = document.documentElement;
     root.classList.remove("dark", "light");
     root.classList.add("dark");
-    localStorage.setItem("theme", "dark");
+    safeLocalStorage.setItem("theme", "dark");
   }, []);
 
   return (

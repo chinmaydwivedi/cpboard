@@ -13,11 +13,15 @@ import { fetchLeetcodeData } from "./leetcode";
 import { fetchAtcoderData } from "./atcoder";
 import { fetchCodechefData } from "./codechef";
 
-const fetchers: Record<Platform, (handle: string) => Promise<PlatformData>> = {
-  CODEFORCES: fetchCodeforcesData,
-  LEETCODE: fetchLeetcodeData,
-  ATCODER: fetchAtcoderData,
-  CODECHEF: fetchCodechefData,
+const fetchers: Record<
+  Platform,
+  (handle: string, deadlineAt?: number) => Promise<PlatformData>
+> = {
+  CODEFORCES: (handle, deadlineAt) =>
+    fetchCodeforcesData(handle, deadlineAt),
+  LEETCODE: (handle) => fetchLeetcodeData(handle),
+  ATCODER: (handle) => fetchAtcoderData(handle),
+  CODECHEF: (handle) => fetchCodechefData(handle),
 };
 
 const OWNERSHIP_VERIFIED_PLATFORMS = new Set<Platform>([
@@ -55,6 +59,8 @@ export type PlatformSyncOptions = {
   minIntervalMs?: number;
   /** Explicit UI retries may recover a recorded failure after this interval. */
   interactiveFailureRetryMs?: number;
+  /** Internal upper bound for provider reads in a duration-limited job. */
+  providerDeadlineAt?: number;
 };
 
 function normalizeHandle(handle: string) {
@@ -64,10 +70,11 @@ function normalizeHandle(handle: string) {
 export async function fetchPlatformData(
   platform: Platform,
   handle: string,
+  deadlineAt?: number,
 ): Promise<PlatformData> {
   const fetcher = fetchers[platform];
   if (!fetcher) throw new Error(`Unknown platform: ${platform}`);
-  return fetcher(handle);
+  return fetcher(handle, deadlineAt);
 }
 
 export async function syncUserPlatform(
@@ -112,7 +119,11 @@ export async function syncUserPlatform(
       throw new PlatformVerificationRequiredError();
     }
 
-    const data = await fetchPlatformData(platform, handle);
+    const data = await fetchPlatformData(
+      platform,
+      handle,
+      options.providerDeadlineAt,
+    );
     const syncedAt = new Date();
     const activityCutoff = new Date(syncedAt);
     activityCutoff.setUTCHours(0, 0, 0, 0);

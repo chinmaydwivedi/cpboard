@@ -24,6 +24,7 @@ export function fetchCodeforcesApi<T>(
   method: string,
   params: Record<string, string | number | boolean | undefined>,
   timeoutMs = 15_000,
+  deadlineAt?: number,
 ): Promise<T> {
   if (pendingRequests >= MAX_PENDING_REQUESTS) {
     return Promise.reject(
@@ -34,15 +35,28 @@ export function fetchCodeforcesApi<T>(
   const queuedAt = Date.now();
 
   const request = queueTail.then(async () => {
-    if (Date.now() - queuedAt > MAX_QUEUE_WAIT_MS) {
+    const deadlineRemainingMs = deadlineAt
+      ? deadlineAt - Date.now()
+      : Number.POSITIVE_INFINITY;
+    if (
+      Date.now() - queuedAt > MAX_QUEUE_WAIT_MS ||
+      deadlineRemainingMs < 500
+    ) {
       throw new Error("Codeforces request queue timed out. Try again shortly.");
     }
     await acquireProviderRequestSlot({
       key: PROVIDER_LEASE_KEY,
       spacingMs: REQUEST_SPACING_MS,
-      maxQueueWaitMs: MAX_QUEUE_WAIT_MS,
+      maxQueueWaitMs: Math.min(MAX_QUEUE_WAIT_MS, deadlineRemainingMs),
       queuedAt,
     });
+
+    const fetchRemainingMs = deadlineAt
+      ? deadlineAt - Date.now()
+      : Number.POSITIVE_INFINITY;
+    if (fetchRemainingMs < 1) {
+      throw new Error("Codeforces request timed out. Try again shortly.");
+    }
 
     const searchParams = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
@@ -54,7 +68,7 @@ export function fetchCodeforcesApi<T>(
       {
         cache: "no-store",
         headers: { "User-Agent": "CPBoard/1.0" },
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(Math.min(timeoutMs, fetchRemainingMs)),
       },
     );
 
@@ -62,14 +76,23 @@ export function fetchCodeforcesApi<T>(
       throw new Error(`Codeforces ${method} failed (${response.status})`);
     }
 
-    const payload = (await response.json()) as CodeforcesResponse<T>;
-    if (payload.status !== "OK") {
+    const payload: unknown = await response.json();
+    if (!payload || typeof payload !== "object" || !("status" in payload)) {
+      throw new Error(`Codeforces ${method} returned invalid data`);
+    }
+    const status = (payload as { status?: unknown }).status;
+    if (status === "FAILED") {
+      const comment = (payload as { comment?: unknown }).comment;
       throw new Error(
-        payload.comment || `Codeforces ${method} returned a failed response`,
+        (typeof comment === "string" && comment.trim()) ||
+          `Codeforces ${method} returned a failed response`,
       );
     }
+    if (status !== "OK" || !("result" in payload)) {
+      throw new Error(`Codeforces ${method} returned invalid data`);
+    }
 
-    return payload.result;
+    return (payload as CodeforcesResponse<T> & { status: "OK" }).result;
   });
 
   const settledRequest = request.finally(() => {

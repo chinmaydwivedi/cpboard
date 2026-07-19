@@ -5,8 +5,73 @@ import { computePotdStreak, dateToDateKey } from "@/lib/potd";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Badge } from "@/components/ui/badge";
 import type { LeaderboardEntry } from "@/types";
+import { withReadRetry } from "@/lib/read-retry";
+import { unstable_cache } from "next/cache";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 export const revalidate = 60;
+export const dynamic = "force-dynamic";
+
+const getUniversity = unstable_cache(
+  (slug: string) =>
+    withReadRetry(async () => {
+      const university = await prisma.university.findUnique({
+        where: { shortName: slug },
+        select: {
+          name: true,
+          shortName: true,
+          users: {
+            select: {
+              id: true,
+              username: true,
+              name: true,
+              avatarUrl: true,
+              platformProfiles: {
+                where: { verified: true },
+                select: {
+                  platform: true,
+                  handle: true,
+                  rating: true,
+                  maxRating: true,
+                  problemsSolved: true,
+                  rank: true,
+                },
+              },
+              potdSolves: {
+                where: { isVerified: true },
+                select: { solvedDate: true },
+                orderBy: { solvedDate: "asc" },
+              },
+            },
+            where: {
+              onboardingComplete: true,
+              platformProfiles: { some: { verified: true } },
+            },
+          },
+        },
+      });
+      if (!university) return null;
+      return {
+        name: university.name,
+        shortName: university.shortName,
+        users: university.users.map((user) => ({
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          platformProfiles: user.platformProfiles,
+          potdSolveDateKeys: user.potdSolves.map((solve) =>
+            dateToDateKey(solve.solvedDate),
+          ),
+        })),
+      };
+    }),
+  ["university-leaderboard-v1"],
+  {
+    revalidate: 60,
+    tags: [CACHE_TAGS.leaderboard, CACHE_TAGS.universities],
+  },
+);
 
 export default async function UniversityLeaderboardPage({
   params,
@@ -15,30 +80,7 @@ export default async function UniversityLeaderboardPage({
 }) {
   const { slug } = await params;
 
-  let university;
-  try {
-    university = await prisma.university.findUnique({
-      where: { shortName: slug },
-      include: {
-        users: {
-          include: {
-            platformProfiles: { where: { verified: true } },
-            potdSolves: {
-              where: { isVerified: true },
-              select: { solvedDate: true },
-              orderBy: { solvedDate: "asc" },
-            },
-          },
-          where: {
-            onboardingComplete: true,
-            platformProfiles: { some: { verified: true } },
-          },
-        },
-      },
-    });
-  } catch {
-    notFound();
-  }
+  const university = await getUniversity(slug);
 
   if (!university) notFound();
 
@@ -53,7 +95,7 @@ export default async function UniversityLeaderboardPage({
       totalSolved: computeTotalSolved(user.platformProfiles),
       bestRating: computeBestRating(user.platformProfiles),
       longestPotdStreak: computePotdStreak(
-        user.potdSolves.map((solve) => dateToDateKey(solve.solvedDate))
+        user.potdSolveDateKeys,
       ).current,
       platforms: user.platformProfiles.map((p) => ({
         platform: p.platform,

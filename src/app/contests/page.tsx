@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Code2, ExternalLink } from "lucide-react";
-import { getUpcomingContests } from "@/lib/contests";
+import { getUpcomingContestFeed } from "@/lib/contests";
 import { ContestsClient } from "./contests-client";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Contest Calendar — CPBoard",
@@ -9,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ContestsPage() {
-  const contests = await getUpcomingContests();
+  const feed = await getUpcomingContestFeed();
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
@@ -41,7 +43,7 @@ export default async function ContestsPage() {
         <ExternalLink className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
       </a>
 
-      <ContestsClient contests={contests} />
+      <ContestsClient contests={feed.contests} available={feed.available} />
     </div>
   );
 }
