@@ -40,11 +40,19 @@ const IST_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
 function extractLeetcodeSlugFromUrl(problemUrl: string): string | null {
   try {
     const url = new URL(problemUrl);
-    if (!url.hostname.includes("leetcode.com")) return null;
+    if (
+      url.protocol !== "https:" ||
+      !["leetcode.com", "www.leetcode.com"].includes(url.hostname) ||
+      url.port ||
+      url.username ||
+      url.password
+    ) {
+      return null;
+    }
     const match = url.pathname.match(/\/problems\/([^/]+)/i);
     if (!match) return null;
     const slug = decodeURIComponent(match[1]).trim().toLowerCase();
-    return slug || null;
+    return /^[a-z0-9-]{1,100}$/.test(slug) ? slug : null;
   } catch {
     return null;
   }
@@ -53,7 +61,15 @@ function extractLeetcodeSlugFromUrl(problemUrl: string): string | null {
 function extractCodeforcesProblemRef(problemUrl: string): CodeforcesProblemRef | null {
   try {
     const url = new URL(problemUrl);
-    if (!url.hostname.includes("codeforces.com")) return null;
+    if (
+      url.protocol !== "https:" ||
+      !["codeforces.com", "www.codeforces.com"].includes(url.hostname) ||
+      url.port ||
+      url.username ||
+      url.password
+    ) {
+      return null;
+    }
 
     const patterns = [
       /\/problemset\/problem\/(\d+)\/([A-Za-z0-9]+)/i,
@@ -68,7 +84,13 @@ function extractCodeforcesProblemRef(problemUrl: string): CodeforcesProblemRef |
       const contestId = Number(match[1]);
       const index = match[2].trim().toUpperCase();
 
-      if (!Number.isFinite(contestId) || contestId <= 0 || !index) continue;
+      if (
+        !Number.isSafeInteger(contestId) ||
+        contestId <= 0 ||
+        !/^[A-Z0-9]{1,10}$/.test(index)
+      ) {
+        continue;
+      }
       return { contestId, index };
     }
 

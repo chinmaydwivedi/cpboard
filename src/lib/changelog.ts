@@ -52,7 +52,7 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         iconSrc: "/icon-192x192.png",
         title: "Layered Browser and API Protection",
         description:
-          "A per-request nonce Content Security Policy, cross-site mutation checks, stricter browser headers, no-store API responses, constant-time job authentication, and separate notification and sync secrets reduce injection, clickjacking, CSRF, caching, and credential-reuse risk.",
+          "A per-request nonce Content Security Policy, cross-site mutation checks, exact official problem-link validation, safe fixed-format operational logs, stricter browser headers, no-store API responses, constant-time job authentication, and separate job secrets reduce injection, request-forgery, caching, and credential-reuse risk.",
       },
       {
         id: "protected-sign-in-flow",
