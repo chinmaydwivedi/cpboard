@@ -1,5 +1,6 @@
 import type { PlatformData } from "@/types";
 import { fetchCodeforcesApi } from "@/lib/codeforces-api";
+import { ProviderProfileNotFoundError } from "./errors";
 
 type CFSubmission = {
   id: number;
@@ -18,8 +19,26 @@ type CFUser = {
 };
 
 export async function fetchCodeforcesData(handle: string): Promise<PlatformData> {
-  const [users, submissions, ratingHistory] = await Promise.all([
-    fetchCodeforcesApi<CFUser[]>("user.info", { handles: handle }),
+  let users: CFUser[];
+  try {
+    users = await fetchCodeforcesApi<CFUser[]>("user.info", {
+      handles: handle,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : "";
+    if (
+      message.startsWith("handles: user with handle ") &&
+      message.endsWith(" not found")
+    ) {
+      throw new ProviderProfileNotFoundError();
+    }
+    throw error;
+  }
+  if (!users.length) {
+    throw new ProviderProfileNotFoundError();
+  }
+
+  const [submissions, ratingHistory] = await Promise.all([
     fetchCodeforcesApi<CFSubmission[]>("user.status", {
       handle,
       from: 1,
@@ -27,10 +46,6 @@ export async function fetchCodeforcesData(handle: string): Promise<PlatformData>
     }),
     fetchCodeforcesApi<unknown[]>("user.rating", { handle }).catch(() => []),
   ]);
-
-  if (!users.length) {
-    throw new Error("Codeforces user not found");
-  }
 
   const user = users[0];
 

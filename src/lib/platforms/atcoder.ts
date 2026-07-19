@@ -1,5 +1,6 @@
 import type { PlatformData } from "@/types";
 import { acquireProviderRequestSlot } from "@/lib/provider-request-queue";
+import { ProviderProfileNotFoundError } from "./errors";
 
 const KENKOOOO_API = "https://kenkoooo.com/atcoder/atcoder-api";
 const ATCODER_BASE = "https://atcoder.jp";
@@ -137,7 +138,7 @@ async function fetchAcceptedCount(handle: string, startedAt: number) {
     },
   ).catch(() => null);
   if (response?.status === 404) {
-    throw new Error("AtCoder user not found");
+    throw new ProviderProfileNotFoundError();
   }
   if (!response?.ok) {
     throw new Error("AtCoder accepted count is temporarily unavailable");
@@ -235,7 +236,7 @@ export async function fetchAtcoderData(handle: string): Promise<PlatformData> {
   ]);
 
   if (!profileHtml) {
-    throw new Error("AtCoder user not found");
+    throw new ProviderProfileNotFoundError();
   }
   const profileStats = parseAtCoderProfileStats(profileHtml);
 

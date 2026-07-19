@@ -1,4 +1,5 @@
 import type { PlatformData } from "@/types";
+import { ProviderProfileNotFoundError } from "./errors";
 
 const API_BASE = "https://cp-rating-api.vercel.app";
 
@@ -74,7 +75,7 @@ export async function fetchCodechefData(handle: string): Promise<PlatformData> {
   const data: CodeChefAPIResponse = await res.json();
 
   if (!data.username && !data.rating) {
-    throw new Error("CodeChef user not found");
+    throw new ProviderProfileNotFoundError();
   }
 
   const rating = parseInt(data.rating || "0", 10) || 0;
