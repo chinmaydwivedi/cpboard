@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runNotificationCycle } from "@/lib/push-notifications";
 import { acquireJobLease } from "@/lib/job-lease";
+import { verifyBearerSecret } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get("authorization");
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+export async function POST(req: NextRequest) {
+  if (
+    !verifyBearerSecret(
+      req.headers.get("authorization"),
+      process.env.NOTIFICATION_CRON_SECRET,
+    )
+  ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

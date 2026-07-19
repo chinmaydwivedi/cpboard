@@ -1,6 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { JsonRequestError, readJsonBody } from "@/lib/security";
 
 const MAX_PATH_LENGTH = 180;
 const DEDUPE_WINDOW_MS = 15_000;
@@ -29,9 +30,12 @@ export async function POST(req: NextRequest) {
 
   let payload: unknown;
   try {
-    payload = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    payload = await readJsonBody(req, 2_048);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
   }
 
   const pathInput =

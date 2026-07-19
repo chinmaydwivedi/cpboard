@@ -37,8 +37,6 @@ function getPosthog() {
 
 type AnalyticsUser = {
   id: string;
-  email: string;
-  name: string | null;
 };
 
 export function AnalyticsTracker({ user }: { user: AnalyticsUser | null }) {
@@ -66,9 +64,7 @@ export function AnalyticsTracker({ user }: { user: AnalyticsUser | null }) {
 
     let cancelled = false;
     const currentUrl = window.location.href;
-    const identityKey = user
-      ? `${user.id}\u0000${user.email}\u0000${user.name ?? ""}`
-      : "anonymous";
+    const identityKey = user?.id ?? "anonymous";
 
     void getPosthog()
       .then((posthog) => {
@@ -76,10 +72,7 @@ export function AnalyticsTracker({ user }: { user: AnalyticsUser | null }) {
 
         if (lastPosthogIdentityRef.current !== identityKey) {
           if (user) {
-            posthog.identify(user.id, {
-              email: user.email,
-              name: user.name ?? undefined,
-            });
+            posthog.identify(user.id);
           } else {
             posthog.reset();
           }

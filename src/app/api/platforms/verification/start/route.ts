@@ -6,6 +6,10 @@ import {
   startPlatformVerification,
 } from "@/lib/platform-verification";
 import { prisma } from "@/lib/prisma";
+import {
+  JsonRequestError,
+  readJsonBody,
+} from "@/lib/security";
 
 const startSchema = z.object({
   platform: z.enum(["CODEFORCES", "LEETCODE"]),
@@ -36,7 +40,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsed = startSchema.safeParse(await request.json().catch(() => null));
+  let body: unknown;
+  try {
+    body = await readJsonBody(request, 2_048);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message, code: "INVALID_INPUT" }, { status: error.status });
+    }
+    throw error;
+  }
+  const parsed = startSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Enter a valid platform and handle", code: "INVALID_INPUT" },

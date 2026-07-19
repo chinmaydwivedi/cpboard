@@ -64,8 +64,6 @@ async function UserAwareHeader() {
           <AnalyticsTracker
             user={{
               id: navUser.id,
-              email: navUser.email,
-              name: navUser.name ?? null,
             }}
           />
         </>

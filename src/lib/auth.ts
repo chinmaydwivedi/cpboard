@@ -1,22 +1,38 @@
 import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import Nodemailer from "next-auth/providers/nodemailer";
 import { prisma } from "./prisma";
 import { isAllowlistedAdminEmail } from "./admin";
+import { findUniversityByEmail } from "./university-domain";
 import type { AdapterUser } from "next-auth/adapters";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
 const baseAdapter = PrismaAdapter(prisma);
+const smtpServer: SMTPTransport.Options = {
+  host: "smtp-relay.brevo.com",
+  port: 587,
+  secure: false,
+  requireTLS: true,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASSWORD,
+  },
+  tls: {
+    minVersion: "TLSv1.2",
+    rejectUnauthorized: true,
+  },
+};
 
-async function findUniversityByDomain(domain: string) {
-  const parts = domain.split(".");
-  const candidates = parts.map((_, index) => parts.slice(index).join("."));
-  const universities = await prisma.university.findMany({
-    where: { emailDomain: { in: candidates } },
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[character];
   });
-  const byDomain = new Map(
-    universities.map((university) => [university.emailDomain, university]),
-  );
-  return candidates.map((candidate) => byDomain.get(candidate)).find(Boolean) ?? null;
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -35,8 +51,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       if (existing) return existing;
 
-      const domain = email.split("@")[1];
-      let university = await findUniversityByDomain(domain);
+      let university = await findUniversityByEmail(email);
 
       if (!university && isAllowlistedAdminEmail(email)) {
         university = await prisma.university.findFirst({
@@ -72,35 +87,42 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
   providers: [
-    Nodemailer({
-      server: {
-        host: "smtp-relay.brevo.com",
-        port: 587,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASSWORD,
-        },
-      },
+    {
+      id: "nodemailer",
+      type: "email" as const,
+      name: "Email",
+      server: smtpServer,
       from: process.env.EMAIL_FROM,
       maxAge: 60 * 60, // 1 hour token validity
-      async sendVerificationRequest({ identifier: email, url, provider }) {
-        const nodemailer = await import("nodemailer");
-        const server = provider.server as Parameters<
-          typeof nodemailer.createTransport
-        >[0];
-        const transport = nodemailer.createTransport(server);
+      async sendVerificationRequest({ identifier: email, url }) {
+        if (
+          !process.env.SMTP_USER ||
+          !process.env.SMTP_PASSWORD ||
+          !process.env.EMAIL_FROM
+        ) {
+          throw new Error("SMTP is not configured");
+        }
+        const { default: mailer } = await import("smtp-mailer");
+        const transport = mailer.createTransport({
+          ...smtpServer,
+          disableFileAccess: true,
+          disableUrlAccess: true,
+        });
+        const safeUrl = escapeHtml(url);
         try {
           const result = await transport.sendMail({
             to: email,
-            from: provider.from,
+            from: process.env.EMAIL_FROM,
             subject: "Sign in to CPBoard",
             text: `Sign in to CPBoard\n\nClick the link below to sign in:\n${url}\n\nThis link expires in one hour. If you did not request this, you can ignore this email.\n`,
+            disableFileAccess: true,
+            disableUrlAccess: true,
             html: `
               <div style="max-width:480px;margin:0 auto;font-family:Arial,sans-serif;padding:32px 24px;background:#0a0a0f;color:#e5e5e5;border-radius:12px;">
                 <h1 style="font-size:20px;font-weight:bold;margin:0 0 8px 0;color:#ffffff;">CPBoard</h1>
                 <p style="font-size:14px;color:#999;margin:0 0 24px 0;">University Competitive Programming Leaderboard</p>
                 <p style="font-size:14px;line-height:1.6;margin:0 0 24px 0;">Click the button below to sign in to your account. This link expires in one hour.</p>
-                <a href="${url}" style="display:inline-block;background:#dc2626;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">Sign In</a>
+                <a href="${safeUrl}" style="display:inline-block;background:#dc2626;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">Sign In</a>
                 <p style="font-size:12px;color:#666;margin:24px 0 0 0;">If you didn't request this email, you can safely ignore it.</p>
               </div>
             `,
@@ -114,7 +136,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           throw error;
         }
       },
-    }),
+    },
   ],
   pages: {
     signIn: "/login",
@@ -125,10 +147,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (!user.email) return false;
       if (isAllowlistedAdminEmail(user.email)) return true;
 
-      const domain = user.email.split("@")[1];
-      if (!domain) return false;
-
-      const university = await findUniversityByDomain(domain);
+      const university = await findUniversityByEmail(user.email);
 
       if (!university) return "/login?error=UnknownUniversity";
 
@@ -139,7 +158,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return baseUrl + "/onboarding";
       }
       if (url.startsWith("/")) return baseUrl + url;
-      if (url.startsWith(baseUrl)) return url;
+      try {
+        if (new URL(url).origin === new URL(baseUrl).origin) return url;
+      } catch {
+        // Invalid callback URLs fall through to the safe application route.
+      }
       return baseUrl + "/onboarding";
     },
     async session({ session, user }) {

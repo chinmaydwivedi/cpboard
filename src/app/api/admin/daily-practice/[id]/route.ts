@@ -10,6 +10,7 @@ import {
   dateKeyToUtcDate,
   isValidProblemUrl,
 } from "@/lib/potd";
+import { JsonRequestError, readJsonBody } from "@/lib/security";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -36,7 +37,10 @@ const patchDailyPracticeSchema = z
       .string()
       .trim()
       .max(500)
-      .refine((value) => isValidProblemUrl(value), "Problem URL must be a valid http(s) link")
+      .refine(
+        (value) => isValidProblemUrl(value),
+        "Use a supported platform HTTPS problem link",
+      )
       .optional(),
     difficulty: z
       .string()
@@ -122,9 +126,12 @@ export async function PATCH(
 
   let payload: unknown;
   try {
-    payload = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    payload = await readJsonBody(req, 256 * 1_024);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
   }
 
   const parsed = patchDailyPracticeSchema.safeParse(payload);

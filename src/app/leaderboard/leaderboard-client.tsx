@@ -98,7 +98,7 @@ export function LeaderboardClient({
                       </span>
                     ))}
                   <span className="text-[9px] text-muted-foreground/70">
-                    Across verified platforms · refreshed twice daily
+                    Across verified platforms · refreshed throughout the day
                   </span>
                 </div>
               </div>

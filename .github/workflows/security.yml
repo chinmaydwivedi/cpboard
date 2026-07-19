@@ -1,0 +1,116 @@
+name: Security gate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpboard-security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  supply-chain:
+    name: Supply chain and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      # Prisma validates and generates its client during installation. These
+      # syntactically valid CI-only URLs are never used against a real database.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/cpboard?sslmode=disable
+      DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/cpboard?sslmode=disable
+      AUTH_SECRET: cpboard-ci-only-secret-not-valid-outside-github-actions
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify dependency tree
+        run: npm ls --all
+
+      - name: Audit known vulnerabilities
+        run: npm audit --audit-level=high
+
+      - name: Verify registry signatures
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+        run: npm audit signatures
+
+      - name: Validate Prisma schema
+        run: npm exec -- prisma validate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm exec -- tsc --noEmit
+
+      - name: Build production application
+        run: npm run build
+
+  production-security-probe:
+    name: Passive production security probe
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CPBOARD_PRODUCTION_URL: ${{ vars.CPBOARD_PRODUCTION_URL }}
+    steps:
+      - name: Verify public security boundaries
+        run: |
+          test -n "$CPBOARD_PRODUCTION_URL"
+
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --output /dev/null \
+            --dump-header /tmp/cpboard-home-headers.txt \
+            "$CPBOARD_PRODUCTION_URL/"
+
+          grep -Eqi '^content-security-policy:.*frame-ancestors.*none' /tmp/cpboard-home-headers.txt
+          grep -Eqi '^strict-transport-security:' /tmp/cpboard-home-headers.txt
+          grep -Eqi '^x-content-type-options:[[:space:]]*nosniff' /tmp/cpboard-home-headers.txt
+          grep -Eqi '^cross-origin-opener-policy:[[:space:]]*same-origin' /tmp/cpboard-home-headers.txt
+          if grep -Eqi '^x-powered-by:' /tmp/cpboard-home-headers.txt; then
+            exit 1
+          fi
+
+          get_cron_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CPBOARD_PRODUCTION_URL/api/cron/sync-all")"
+          unauthenticated_status="$(curl --request POST --silent --show-error --output /dev/null --write-out '%{http_code}' "$CPBOARD_PRODUCTION_URL/api/cron/sync-all?platform=CODEFORCES")"
+          cross_site_status="$(curl --request POST --silent --show-error --output /dev/null --write-out '%{http_code}' --header 'Origin: https://attacker.invalid' --header 'X-Forwarded-Host: attacker.invalid' "$CPBOARD_PRODUCTION_URL/api/auth/check-domain")"
+
+          test "$get_cron_status" = "405"
+          test "$unauthenticated_status" = "401"
+          test "$cross_site_status" = "403"
+
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --output /dev/null \
+            "$CPBOARD_PRODUCTION_URL/.well-known/security.txt"

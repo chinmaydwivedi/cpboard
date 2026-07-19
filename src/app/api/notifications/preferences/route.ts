@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { JsonRequestError, readJsonBody } from "@/lib/security";
 
 const preferencesSchema = z
   .object({
@@ -18,7 +19,16 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const parsed = preferencesSchema.safeParse(await req.json().catch(() => null));
+  let body: unknown;
+  try {
+    body = await readJsonBody(req, 2_048);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+  const parsed = preferencesSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid notification settings" }, { status: 400 });
   }

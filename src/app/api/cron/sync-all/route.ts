@@ -10,153 +10,177 @@ import {
   PlatformSyncLeaseError,
 } from "@/lib/platform-sync-lease";
 import { acquireJobLease } from "@/lib/job-lease";
+import {
+  verifyBearerSecret,
+} from "@/lib/security";
 
+export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const BATCH_SIZE = 3;
-const CANDIDATE_LIMIT = 24;
-const TIME_BUDGET_MS = 55_000;
-// The slowest provider path can consume roughly 40 seconds including its
-// distributed queue wait. Do not start a later batch unless that much budget
-// remains; the first batch is always allowed so each run still makes progress.
-const BATCH_RUNTIME_RESERVE_MS = 42_000;
+const BACKGROUND_SYNC_INTERVAL_MS = 12 * 60 * 60 * 1_000;
+const JOB_LEASE_MS = 90_000;
+const POLICIES = {
+  CODEFORCES: { concurrency: 3 },
+  LEETCODE: { concurrency: 4 },
+  ATCODER: { concurrency: 1 },
+  CODECHEF: { concurrency: 2 },
+} satisfies Record<Platform, { concurrency: number }>;
 
 type CronProfile = {
   userId: string;
   platform: Platform;
   handle: string;
+  dueCount: number;
+  oldestDueAt: Date;
 };
 
 type CronSyncResult = {
-  userId: string;
-  platform: Platform;
   success: boolean;
-  skipped?: boolean;
-  error?: string;
+  skipped: boolean;
 };
 
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+function parsePlatform(value: string | null): Platform | null {
+  return value && Object.values(Platform).includes(value as Platform)
+    ? (value as Platform)
+    : null;
+}
+
+export async function POST(req: NextRequest) {
+  const startedAt = Date.now();
+  if (
+    !verifyBearerSecret(
+      req.headers.get("authorization"),
+      process.env.PLATFORM_SYNC_CRON_SECRET,
+    )
+  ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!(await acquireJobLease("platform-sync", 60_000))) {
-    return NextResponse.json({ skipped: true, reason: "already_running" });
+  const platform = parsePlatform(req.nextUrl.searchParams.get("platform"));
+  if (!platform) {
+    return NextResponse.json({ error: "Valid platform is required" }, { status: 400 });
+  }
+  const policy = POLICIES[platform];
+
+  if (!(await acquireJobLease(`platform-sync:${platform}`, JOB_LEASE_MS))) {
+    return NextResponse.json({
+      platform,
+      jobSkipped: true,
+      reason: "already_running",
+      selected: 0,
+      attempted: 0,
+      successful: 0,
+      failed: 0,
+      skipped: 0,
+      oldestDueAt: null,
+      remainingDue: null,
+      durationMs: Date.now() - startedAt,
+    });
   }
 
-  const startTime = Date.now();
-  const [profiles] = await Promise.all([
-    prisma.$queryRaw<CronProfile[]>`
-      SELECT
-        profiles."userId",
-        profiles."platform",
-        profiles."handle"
-      FROM "PlatformProfile" AS profiles
-      INNER JOIN "User" AS users
-        ON users."id" = profiles."userId"
-      LEFT JOIN "PlatformSyncLease" AS leases
-        ON leases."userId" = profiles."userId"
-        AND leases."platform" = profiles."platform"
-      WHERE profiles."verified" = true
-        AND users."onboardingComplete" = true
-        AND (
-          leases."leaseUntil" IS NULL
-          OR leases."leaseUntil" <= CURRENT_TIMESTAMP
+  const profiles = await prisma.$queryRaw<CronProfile[]>`
+    SELECT
+      profiles."userId",
+      profiles."platform",
+      profiles."handle",
+      (COUNT(*) OVER())::integer AS "dueCount",
+      MIN(
+        COALESCE(
+          leases."lastStartedAt",
+          profiles."lastSynced",
+          TIMESTAMP '1970-01-01'
         )
-        AND (
-          leases."nextAttemptAt" IS NULL
-          OR leases."nextAttemptAt" <= CURRENT_TIMESTAMP
+      ) OVER() AS "oldestDueAt"
+    FROM "PlatformProfile" AS profiles
+    INNER JOIN "User" AS users
+      ON users."id" = profiles."userId"
+    LEFT JOIN "PlatformSyncLease" AS leases
+      ON leases."userId" = profiles."userId"
+      AND leases."platform" = profiles."platform"
+    WHERE profiles."verified" = true
+      AND profiles."platform" = CAST(${platform} AS "Platform")
+      AND users."onboardingComplete" = true
+      AND (
+        leases."leaseUntil" IS NULL
+        OR leases."leaseUntil" <= CURRENT_TIMESTAMP
+      )
+      AND (
+        (
+          COALESCE(leases."consecutiveFailures", 0) = 0
+          AND COALESCE(
+            leases."lastStartedAt",
+            profiles."lastSynced",
+            TIMESTAMP '1970-01-01'
+          ) <= CURRENT_TIMESTAMP - (
+            CAST(${BACKGROUND_SYNC_INTERVAL_MS} AS double precision)
+            * INTERVAL '1 millisecond'
+          )
         )
-        AND (
-          leases."lastStartedAt" IS NULL
-          OR leases."lastStartedAt" <= CURRENT_TIMESTAMP - (
+        OR (
+          COALESCE(leases."consecutiveFailures", 0) > 0
+          AND leases."nextAttemptAt" <= CURRENT_TIMESTAMP
+          AND leases."lastStartedAt" <= CURRENT_TIMESTAMP - (
             CAST(${CRON_SYNC_COOLDOWN_MS} AS double precision)
             * INTERVAL '1 millisecond'
           )
         )
-      ORDER BY
-        COALESCE(
-          leases."lastStartedAt",
-          profiles."lastSynced",
-          '-infinity'::timestamp
-        ) ASC,
-        profiles."id" ASC
-      LIMIT ${CANDIDATE_LIMIT}
-    `,
-    prisma.platformVerificationChallenge.deleteMany({
-      where: {
-        verifiedAt: null,
-        expiresAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1_000) },
-      },
-    }),
-  ]);
-
-  const results: CronSyncResult[] = [];
-  let timedOut = false;
+      )
+    ORDER BY
+      COALESCE(
+        leases."lastStartedAt",
+        profiles."lastSynced",
+        TIMESTAMP '1970-01-01'
+      ) ASC,
+      profiles."id" ASC
+    LIMIT ${policy.concurrency}
+  `;
 
   async function syncProfile(profile: CronProfile): Promise<CronSyncResult> {
     try {
       await syncUserPlatform(profile.userId, profile.platform, profile.handle, {
         minIntervalMs: CRON_SYNC_COOLDOWN_MS,
       });
-      return {
-        userId: profile.userId,
-        platform: profile.platform,
-        success: true,
-      };
+      return { success: true, skipped: false };
     } catch (error) {
       const skipped =
         error instanceof PlatformSyncLeaseError ||
         error instanceof PlatformProfileNotLinkedError;
-      return {
-        userId: profile.userId,
-        platform: profile.platform,
-        success: false,
-        skipped,
-        error: error instanceof Error ? error.message : "Unknown",
-      };
+      if (!skipped) {
+        console.warn(
+          `Background ${platform} sync failed`,
+          error instanceof Error ? error.name : "Unknown",
+        );
+      }
+      return { success: false, skipped };
     }
   }
 
-  for (let index = 0; index < profiles.length; index += BATCH_SIZE) {
-    const elapsedMs = Date.now() - startTime;
-    if (
-      elapsedMs > TIME_BUDGET_MS ||
-      (index > 0 && TIME_BUDGET_MS - elapsedMs < BATCH_RUNTIME_RESERVE_MS)
-    ) {
-      timedOut = true;
-      break;
-    }
-    const batch = profiles.slice(index, index + BATCH_SIZE);
-    results.push(...(await Promise.all(batch.map(syncProfile))));
-  }
-
-  const successfulResults = results.filter((result) => result.success);
-  if (successfulResults.length > 0) {
-    revalidateTag(CACHE_TAGS.landingStats, "max");
+  const settled = await Promise.allSettled(profiles.map(syncProfile));
+  const results = settled.map<CronSyncResult>((result) =>
+    result.status === "fulfilled"
+      ? result.value
+      : { success: false, skipped: false },
+  );
+  const successful = results.filter((result) => result.success).length;
+  const skipped = results.filter((result) => result.skipped).length;
+  const failed = results.length - successful - skipped;
+  if (successful > 0) {
     revalidateTag(CACHE_TAGS.leaderboard, "max");
-    if (
-      successfulResults.some(
-        (result) =>
-          result.platform === "CODEFORCES" || result.platform === "LEETCODE",
-      )
-    ) {
-      revalidateTag(CACHE_TAGS.topicRadar, "max");
-    }
-    if (successfulResults.some((result) => result.platform === "CODEFORCES")) {
+    if (platform === "CODEFORCES") {
       revalidateTag(CACHE_TAGS.cpRankings, "max");
     }
   }
 
+  const dueCount = profiles[0]?.dueCount ?? 0;
   return NextResponse.json({
+    platform,
     selected: profiles.length,
     attempted: results.length,
-    successful: successfulResults.length,
-    failed: results.filter((result) => !result.success && !result.skipped).length,
-    skipped: results.filter((result) => result.skipped).length,
-    timedOut,
-    results,
+    successful,
+    failed,
+    skipped,
+    oldestDueAt: profiles[0]?.oldestDueAt?.toISOString() ?? null,
+    remainingDue: Math.max(0, dueCount - results.length),
+    durationMs: Date.now() - startedAt,
   });
 }

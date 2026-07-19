@@ -30,6 +30,11 @@ export default function LoginPage() {
         body: JSON.stringify({ email }),
       });
       const domainData = await domainCheck.json();
+      if (domainCheck.status === 429) {
+        setError("Too many sign-in attempts. Please wait and try again.");
+        setLoading(false);
+        return;
+      }
       if (!domainData.valid) {
         setError("Your university is not registered yet. Contact the admin to add it.");
         setLoading(false);
@@ -37,7 +42,9 @@ export default function LoginPage() {
       }
 
       const result = await signIn("nodemailer", { email, redirect: false });
-      if (result?.error) {
+      if (result?.status === 429) {
+        setError("Too many sign-in emails were requested. Please wait before retrying.");
+      } else if (result?.error) {
         setError("Failed to send email. Please try again.");
       } else {
         setSent(true);

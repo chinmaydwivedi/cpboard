@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -16,6 +17,7 @@ import {
   PlatformSyncLeaseError,
   USER_SYNC_COOLDOWN_MS,
 } from "@/lib/platform-sync-lease";
+import { JsonRequestError, readJsonBody } from "@/lib/security";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -26,11 +28,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => null)) as {
-    platform?: string;
-    handle?: string;
-  } | null;
-  if (!body?.platform || !Object.values(Platform).includes(body.platform as Platform)) {
+  let body: { platform?: string; handle?: string } | null = null;
+  try {
+    const payload = await readJsonBody(req, 2_048);
+    body = payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as { platform?: string; handle?: string })
+      : null;
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+  if (
+    !body ||
+    typeof body.platform !== "string" ||
+    (body.handle !== undefined && typeof body.handle !== "string") ||
+    !Object.values(Platform).includes(body.platform as Platform)
+  ) {
     return NextResponse.json({ error: "Invalid platform" }, { status: 400 });
   }
   const platform = body.platform as Platform;
@@ -136,14 +151,14 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
+    const notFound = error instanceof Error && /not found/i.test(error.message);
+    console.error("Platform sync failed", {
+      platform,
+      error: error instanceof Error ? error.name : "Unknown",
+    });
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to sync platform data",
-      },
-      { status: 500 }
+      { error: notFound ? `${platform} profile not found` : "The provider is unavailable. Try again shortly." },
+      { status: notFound ? 404 : 502 },
     );
   }
 }
@@ -157,7 +172,15 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => null);
+  let body: unknown;
+  try {
+    body = await readJsonBody(req, 1_024);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
@@ -171,21 +194,47 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Invalid platform" }, { status: 400 });
   }
 
-  const profileDelete = await prisma.$transaction(async (tx) => {
+  const profileDeleted = await prisma.$transaction(async (tx) => {
     await lockPlatformProfileTransaction(tx, userId, platform);
+    const profile = await tx.platformProfile.findUnique({
+      where: { userId_platform: { userId, platform } },
+      select: { id: true },
+    });
+    if (!profile) return false;
+
     await tx.dailyActivity.deleteMany({ where: { userId, platform } });
     await tx.syncLog.deleteMany({ where: { userId, platform } });
     await tx.platformVerificationChallenge.deleteMany({
       where: { userId, platform },
     });
-    await tx.platformVerificationStartLease.deleteMany({
-      where: { userId, platform },
+    const disconnectedAt = new Date();
+    const fenceToken = randomUUID();
+    await tx.platformSyncLease.upsert({
+      where: { userId_platform: { userId, platform } },
+      create: {
+        userId,
+        platform,
+        leaseToken: fenceToken,
+        leaseUntil: disconnectedAt,
+        lastStartedAt: disconnectedAt,
+        nextAttemptAt: null,
+        consecutiveFailures: 0,
+        lastError: null,
+      },
+      update: {
+        leaseToken: fenceToken,
+        leaseUntil: disconnectedAt,
+        lastStartedAt: disconnectedAt,
+        nextAttemptAt: null,
+        consecutiveFailures: 0,
+        lastError: null,
+      },
     });
-    await tx.platformSyncLease.deleteMany({ where: { userId, platform } });
-    return tx.platformProfile.deleteMany({ where: { userId, platform } });
+    await tx.platformProfile.delete({ where: { id: profile.id } });
+    return true;
   });
 
-  if (profileDelete.count === 0) {
+  if (!profileDeleted) {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
 

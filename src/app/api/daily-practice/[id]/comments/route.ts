@@ -7,8 +7,10 @@ import {
   MAX_COMMENT_LENGTH,
   normalizeCommentBody,
 } from "@/lib/potd";
+import { JsonRequestError, readJsonBody } from "@/lib/security";
 
 const COMMENT_COOLDOWN_MS = COMMENT_COOLDOWN_SECONDS * 1000;
+class CommentCooldownError extends Error {}
 
 export async function GET(
   _req: NextRequest,
@@ -77,9 +79,12 @@ export async function POST(
 
   let payload: unknown;
   try {
-    payload = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    payload = await readJsonBody(req, 12 * 1_024);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
   }
 
   const bodyRaw =
@@ -103,36 +108,39 @@ export async function POST(
     );
   }
 
-  const latestComment = await prisma.dailyPracticeComment.findFirst({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
-  });
-
-  if (
-    latestComment &&
-    Date.now() - latestComment.createdAt.getTime() < COMMENT_COOLDOWN_MS
-  ) {
-    return NextResponse.json(
-      {
-        error: `Please wait ${COMMENT_COOLDOWN_SECONDS}s before posting again`,
-      },
-      { status: 429 }
-    );
+  let comment;
+  try {
+    comment = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(
+          hashtextextended(${`potd-comment:${user.id}`}, 0)
+        )
+      `;
+      const latestComment = await tx.dailyPracticeComment.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      });
+      if (
+        latestComment &&
+        Date.now() - latestComment.createdAt.getTime() < COMMENT_COOLDOWN_MS
+      ) {
+        throw new CommentCooldownError();
+      }
+      return tx.dailyPracticeComment.create({
+        data: { problemId: problem.id, userId: user.id, body },
+        select: { id: true, body: true, createdAt: true },
+      });
+    });
+  } catch (error) {
+    if (error instanceof CommentCooldownError) {
+      return NextResponse.json(
+        { error: `Please wait ${COMMENT_COOLDOWN_SECONDS}s before posting again` },
+        { status: 429, headers: { "Retry-After": String(COMMENT_COOLDOWN_SECONDS) } },
+      );
+    }
+    throw error;
   }
-
-  const comment = await prisma.dailyPracticeComment.create({
-    data: {
-      problemId: problem.id,
-      userId: user.id,
-      body,
-    },
-    select: {
-      id: true,
-      body: true,
-      createdAt: true,
-    },
-  });
 
   return NextResponse.json({
     comment: {
@@ -160,9 +168,12 @@ export async function DELETE(
 
   let payload: unknown;
   try {
-    payload = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    payload = await readJsonBody(req, 4_096);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
   }
 
   const commentId =

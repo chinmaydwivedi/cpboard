@@ -1,7 +1,12 @@
 import type { PlatformData } from "@/types";
+import { acquireProviderRequestSlot } from "@/lib/provider-request-queue";
 
 const KENKOOOO_API = "https://kenkoooo.com/atcoder/atcoder-api";
 const ATCODER_BASE = "https://atcoder.jp";
+const SUBMISSION_REQUEST_SPACING_MS = 1_100;
+const PROVIDER_DEADLINE_MS = 40_000;
+const MAX_SUBMISSION_PAGES = 40;
+const ACTIVITY_RETENTION_DAYS = 370;
 
 type AtCoderSubmission = {
   id: number;
@@ -23,6 +28,10 @@ type AtCoderProfileStats = {
   maxRating: number;
   ratedMatches: number;
   rank: string | null;
+};
+
+type AtCoderAcceptedCount = {
+  count?: number;
 };
 
 function parseIntSafe(value: string | null | undefined): number {
@@ -101,19 +110,77 @@ async function fetchAtCoderHistory(handle: string): Promise<AtCoderHistoryEntry[
   }
 }
 
-async function fetchAllSubmissions(handle: string): Promise<AtCoderSubmission[]> {
-  const all: AtCoderSubmission[] = [];
-  let fromSecond = 0;
-  const signal = AbortSignal.timeout(35_000);
+async function fetchAcceptedCount(handle: string, startedAt: number) {
+  const remainingMs = PROVIDER_DEADLINE_MS - (Date.now() - startedAt);
+  if (remainingMs < 1_000) {
+    throw new Error("AtCoder data fetch timed out");
+  }
+  await acquireProviderRequestSlot({
+    key: "ATCODER_PROBLEMS_API",
+    spacingMs: SUBMISSION_REQUEST_SPACING_MS,
+    maxQueueWaitMs: Math.min(remainingMs, 20_000),
+  });
 
-  for (let i = 0; i < 30; i++) {
+  const fetchRemainingMs = PROVIDER_DEADLINE_MS - (Date.now() - startedAt);
+  if (fetchRemainingMs < 500) {
+    throw new Error("AtCoder data fetch timed out");
+  }
+  const response = await fetch(
+    `${KENKOOOO_API}/v3/user/ac_rank?user=${encodeURIComponent(handle)}`,
+    {
+      cache: "no-store",
+      signal: AbortSignal.timeout(Math.min(12_000, fetchRemainingMs)),
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        Accept: "application/json, text/plain, */*",
+      },
+    },
+  ).catch(() => null);
+  if (response?.status === 404) {
+    throw new Error("AtCoder user not found");
+  }
+  if (!response?.ok) {
+    throw new Error("AtCoder accepted count is temporarily unavailable");
+  }
+  const payload = (await response.json().catch(() => null)) as AtCoderAcceptedCount | null;
+  if (!payload || !Number.isSafeInteger(payload.count) || (payload.count ?? -1) < 0) {
+    throw new Error("AtCoder accepted count returned invalid data");
+  }
+  return payload.count as number;
+}
+
+async function fetchRecentSubmissions(
+  handle: string,
+  startedAt: number,
+): Promise<AtCoderSubmission[]> {
+  const all: AtCoderSubmission[] = [];
+  let fromSecond = Math.floor(
+    (Date.now() - ACTIVITY_RETENTION_DAYS * 24 * 60 * 60 * 1_000) / 1_000,
+  );
+
+  for (let i = 0; i < MAX_SUBMISSION_PAGES; i++) {
+    const elapsed = Date.now() - startedAt;
+    const remainingMs = PROVIDER_DEADLINE_MS - elapsed;
+    if (remainingMs < 1_000) {
+      throw new Error("AtCoder submission history timed out");
+    }
+    await acquireProviderRequestSlot({
+      key: "ATCODER_PROBLEMS_API",
+      spacingMs: SUBMISSION_REQUEST_SPACING_MS,
+      maxQueueWaitMs: Math.min(remainingMs, 45_000),
+    });
+    const fetchRemainingMs = PROVIDER_DEADLINE_MS - (Date.now() - startedAt);
+    if (fetchRemainingMs < 500) {
+      throw new Error("AtCoder submission history timed out");
+    }
+
     let res: Response;
     try {
       res = await fetch(
         `${KENKOOOO_API}/v3/user/submissions?user=${encodeURIComponent(handle)}&from_second=${fromSecond}`,
         {
           cache: "no-store",
-          signal,
+          signal: AbortSignal.timeout(Math.min(12_000, fetchRemainingMs)),
           headers: {
             "User-Agent": "Mozilla/5.0",
             Accept: "application/json, text/plain, */*",
@@ -121,18 +188,25 @@ async function fetchAllSubmissions(handle: string): Promise<AtCoderSubmission[]>
         }
       );
     } catch {
-      break;
+      throw new Error("AtCoder submissions are temporarily unavailable");
     }
 
-    if (!res.ok) break;
+    if (!res.ok) {
+      throw new Error(`AtCoder submissions failed (${res.status})`);
+    }
 
     let batch: AtCoderSubmission[];
     try {
       const parsed = await res.json();
-      if (!Array.isArray(parsed)) break;
+      if (!Array.isArray(parsed)) {
+        throw new Error("AtCoder submissions returned invalid data");
+      }
       batch = parsed as AtCoderSubmission[];
-    } catch {
-      break;
+    } catch (error) {
+      if (error instanceof Error && error.message === "AtCoder submissions returned invalid data") {
+        throw error;
+      }
+      throw new Error("AtCoder submissions returned invalid data");
     }
 
     if (batch.length === 0) break;
@@ -140,19 +214,24 @@ async function fetchAllSubmissions(handle: string): Promise<AtCoderSubmission[]>
     all.push(...batch);
 
     if (batch.length < 500) break;
+    if (i === MAX_SUBMISSION_PAGES - 1) {
+      throw new Error("AtCoder submission history exceeds the safe sync window");
+    }
     fromSecond = batch[batch.length - 1].epoch_second + 1;
-
-    await new Promise((r) => setTimeout(r, 350));
   }
 
   return all;
 }
 
 export async function fetchAtcoderData(handle: string): Promise<PlatformData> {
-  const [profileHtml, history, submissions] = await Promise.all([
-    fetchAtCoderProfilePage(handle),
-    fetchAtCoderHistory(handle),
-    fetchAllSubmissions(handle),
+  const startedAt = Date.now();
+  const profilePromise = fetchAtCoderProfilePage(handle);
+  const historyPromise = fetchAtCoderHistory(handle);
+  const acceptedCount = await fetchAcceptedCount(handle, startedAt);
+  const submissions = await fetchRecentSubmissions(handle, startedAt);
+  const [profileHtml, history] = await Promise.all([
+    profilePromise,
+    historyPromise,
   ]);
 
   if (!profileHtml) {
@@ -191,14 +270,17 @@ export async function fetchAtcoderData(handle: string): Promise<PlatformData> {
 
   const rating = ratingFromHistory || profileStats.rating || 0;
   const maxRating = Math.max(maxRatingFromHistory, profileStats.maxRating, rating);
-  const contestsCount =
-    contestSet.size > 0 ? contestSet.size : Math.max(history.length, profileStats.ratedMatches);
+  const contestsCount = Math.max(
+    contestSet.size,
+    history.length,
+    profileStats.ratedMatches,
+  );
 
   return {
     handle,
     rating,
     maxRating,
-    problemsSolved: firstAcceptedAt.size,
+    problemsSolved: acceptedCount,
     rank: profileStats.rank,
     contestsCount,
     dailyActivity,

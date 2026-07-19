@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { fetchCodeforcesApi } from "@/lib/codeforces-api";
 import { syncUserPlatform } from "@/lib/platforms";
 import { lockPlatformProfileTransaction } from "@/lib/platform-sync-lease";
+import { claimRateLimit } from "@/lib/security";
 
 export type OwnershipVerificationPlatform = "CODEFORCES" | "LEETCODE";
 
@@ -587,6 +588,21 @@ export async function startPlatformVerification(args: {
       recentChallenge.expiresAt.getTime() + OBSERVATION_GRACE_MS
   ) {
     return toChallengeResponse(recentChallenge);
+  }
+
+  const attemptLimit = await claimRateLimit({
+    scope: "platform-verification-start",
+    identifier: `${args.userId}:${args.platform}`,
+    limit: 10,
+    windowMs: 60 * 60 * 1_000,
+  });
+  if (!attemptLimit.allowed) {
+    throw new PlatformVerificationError(
+      "Too many verification challenges. Try again later.",
+      "START_RATE_LIMITED",
+      429,
+      attemptLimit.retryAfter,
+    );
   }
 
   await acquireVerificationStartLease(args.userId, args.platform);

@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 import { getUpcomingContestFeed } from "@/lib/contests";
+import { isTrustedPushEndpoint } from "@/lib/push-endpoint";
 
 const LEADERBOARD_STATE_KEY = "global";
 const STALE_DELIVERY_MS = 5 * 60 * 1000;
@@ -163,6 +164,13 @@ async function sendOne(
   type: string,
 ): Promise<DeliverySummary> {
   const summary = emptyDeliverySummary();
+  if (!isTrustedPushEndpoint(subscription.endpoint)) {
+    await prisma.pushSubscription.deleteMany({
+      where: { id: subscription.id },
+    });
+    summary.removed = 1;
+    return summary;
+  }
   const delivery = await claimDelivery(subscription.id, eventKey, type);
   if (!delivery) {
     summary.skipped = 1;

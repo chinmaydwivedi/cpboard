@@ -8,6 +8,7 @@ import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { z } from "zod";
 import { lockPlatformProfileTransaction } from "@/lib/platform-sync-lease";
+import { JsonRequestError, readJsonBody } from "@/lib/security";
 
 const onboardingSchema = z.object({
   username: z.string().trim().min(3).max(30),
@@ -30,9 +31,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const parsedBody = onboardingSchema.safeParse(
-    await req.json().catch(() => null),
-  );
+  let body: unknown;
+  try {
+    body = await readJsonBody(req, 8_192);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+  const parsedBody = onboardingSchema.safeParse(body);
   if (!parsedBody.success) {
     return NextResponse.json(
       { error: "Check your profile details and try again" },
@@ -213,7 +221,10 @@ export async function POST(req: NextRequest) {
         .catch((error: unknown) => ({
           platform: profile.platform,
           success: false as const,
-          error: error instanceof Error ? error.message : "Sync failed",
+          error:
+            error instanceof Error && /not found/i.test(error.message)
+              ? "Profile not found"
+              : "Provider sync failed",
         }));
     });
 

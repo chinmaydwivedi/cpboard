@@ -7,6 +7,7 @@ import {
 } from "@/lib/platform-verification";
 import { invalidatePlatformViews } from "@/lib/platform-cache";
 import { prisma } from "@/lib/prisma";
+import { JsonRequestError, readJsonBody } from "@/lib/security";
 
 const checkSchema = z.object({
   platform: z.enum(["CODEFORCES", "LEETCODE"]),
@@ -38,7 +39,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsed = checkSchema.safeParse(await request.json().catch(() => null));
+  let body: unknown;
+  try {
+    body = await readJsonBody(request, 1_024);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message, code: "INVALID_INPUT" }, { status: error.status });
+    }
+    throw error;
+  }
+  const parsed = checkSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Choose Codeforces or LeetCode", code: "INVALID_INPUT" },

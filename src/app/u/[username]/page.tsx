@@ -4,6 +4,7 @@ import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { ProfileClient } from "./profile-client";
 import type { HeatmapData } from "@/types";
+import { claimRateLimit } from "@/lib/security";
 
 export const revalidate = 60;
 
@@ -59,12 +60,19 @@ export default async function ProfilePage({
   if (!session?.user?.email) redirect("/login");
 
   if (!user) notFound();
-  let profileViews = user.profileViews;
+  const profileViews = user.profileViews;
+  const viewerUserId = session.user.id;
 
-  if (session.user.id !== user.id) {
-    profileViews += 1;
+  if (viewerUserId !== user.id) {
     after(async () => {
       try {
+        const claim = await claimRateLimit({
+          scope: "profile-view",
+          identifier: `${viewerUserId}:${user.id}`,
+          limit: 1,
+          windowMs: 60 * 60 * 1_000,
+        });
+        if (!claim.allowed) return;
         await prisma.user.update({
           where: { id: user.id },
           data: { profileViews: { increment: 1 } },
@@ -121,7 +129,7 @@ export default async function ProfilePage({
       profileVisits={profileViews}
       todayIso={todayIso}
       supportEmail="chinmaydhardwivedi@gmail.com"
-      isOwner={session.user.id === user.id}
+      isOwner={viewerUserId === user.id}
     />
   );
 }

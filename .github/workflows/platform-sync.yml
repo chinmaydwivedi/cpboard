@@ -1,16 +1,13 @@
-name: Platform sync
+name: Platform sync recovery
 
 on:
-  schedule:
-    - cron: "30 0 * * *"
-    - cron: "30 12 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: cpboard-platform-sync
+  group: cpboard-platform-sync-recovery
   cancel-in-progress: false
 
 jobs:
@@ -18,23 +15,49 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Refresh linked platform profiles
+      - name: Trigger all provider lanes
         env:
-          CPBOARD_CRON_SECRET: ${{ secrets.CPBOARD_CRON_SECRET }}
+          CPBOARD_PLATFORM_SYNC_SECRET: ${{ secrets.CPBOARD_PLATFORM_SYNC_SECRET }}
           CPBOARD_PRODUCTION_URL: ${{ vars.CPBOARD_PRODUCTION_URL }}
         run: |
-          test -n "$CPBOARD_CRON_SECRET"
+          test -n "$CPBOARD_PLATFORM_SYNC_SECRET"
           test -n "$CPBOARD_PRODUCTION_URL"
-          curl \
-            --fail \
-            --silent \
-            --show-error \
-            --retry 2 \
-            --retry-all-errors \
-            --connect-timeout 10 \
-            --max-time 70 \
-            --header "Authorization: Bearer $CPBOARD_CRON_SECRET" \
-            --output /tmp/cpboard-sync-result.json \
-            "$CPBOARD_PRODUCTION_URL/api/cron/sync-all"
-          jq -c '{selected, attempted, successful, failed, skipped, timedOut}' /tmp/cpboard-sync-result.json
-          jq -e '(.attempted == 0) or (.successful > 0) or (.failed == 0)' /tmp/cpboard-sync-result.json > /dev/null
+
+          platforms=(CODEFORCES LEETCODE ATCODER CODECHEF)
+          pids=()
+          for platform in "${platforms[@]}"; do
+            curl \
+              --request POST \
+              --fail \
+              --silent \
+              --show-error \
+              --retry 2 \
+              --retry-all-errors \
+              --connect-timeout 10 \
+              --max-time 70 \
+              --header "Authorization: Bearer $CPBOARD_PLATFORM_SYNC_SECRET" \
+              --output "/tmp/cpboard-recovery-${platform}.json" \
+              "$CPBOARD_PRODUCTION_URL/api/cron/sync-all?platform=$platform" &
+            pids+=("$!")
+          done
+
+          failed=0
+          for pid in "${pids[@]}"; do
+            if ! wait "$pid"; then
+              failed=1
+            fi
+          done
+
+          for platform in "${platforms[@]}"; do
+            result="/tmp/cpboard-recovery-${platform}.json"
+            if test -s "$result"; then
+              jq -c '{platform, jobSkipped, selected, attempted, successful, failed, skipped, remainingDue, durationMs, reason}' "$result"
+              if ! jq -e '(.jobSkipped == true) or (.attempted == 0) or (.successful > 0) or (.failed == 0)' "$result" > /dev/null; then
+                failed=1
+              fi
+            else
+              failed=1
+            fi
+          done
+
+          exit "$failed"

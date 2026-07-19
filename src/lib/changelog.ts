@@ -18,6 +18,95 @@ export type ChangelogRelease = {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    id: "2026-07-19-parallel-security-release",
+    publishedOn: "2026-07-19",
+    headline: "Faster Refreshes and Stronger Defenses",
+    summary:
+      "Platform updates now use provider-isolated parallel lanes with a 12-hour freshness cycle, while authentication, uploads, scheduled jobs, shared data, and the release pipeline gain layered security controls.",
+    highlights: [
+      {
+        id: "provider-isolated-refresh-lanes",
+        label: "IMPROVED",
+        pageHref: "/leaderboard",
+        pageLabel: "Live data",
+        iconSrc: "/icon-192x192.png",
+        title: "Parallel Provider Refresh Lanes",
+        description:
+          "Codeforces, LeetCode, AtCoder, and CodeChef now refresh independently every maintenance cycle with provider-specific concurrency. Fresh profiles become eligible every 12 hours, so a slow provider no longer holds up the others and stale queues catch up throughout the day.",
+      },
+      {
+        id: "safe-upstream-coordination",
+        label: "IMPROVED",
+        pageHref: "/dashboard",
+        pageLabel: "Reliability",
+        iconSrc: "/icon-192x192.png",
+        title: "Safe, Race-Free Syncs",
+        description:
+          "Shared database pacing now enforces Codeforces and AtCoder request intervals across serverless instances. Row-locked lease fencing prevents an older response from overwriting a newer handle, disconnect cooldown tombstones stop unlink/relink abuse, and failed profiles back off without blocking healthy ones.",
+      },
+      {
+        id: "application-security-boundaries",
+        label: "IMPROVED",
+        pageHref: "/",
+        pageLabel: "Site-wide",
+        iconSrc: "/icon-192x192.png",
+        title: "Layered Browser and API Protection",
+        description:
+          "A per-request nonce Content Security Policy, cross-site mutation checks, stricter browser headers, no-store API responses, constant-time job authentication, and separate notification and sync secrets reduce injection, clickjacking, CSRF, caching, and credential-reuse risk.",
+      },
+      {
+        id: "protected-sign-in-flow",
+        label: "IMPROVED",
+        pageHref: "/login",
+        pageLabel: "Sign in",
+        iconSrc: "/icon-192x192.png",
+        title: "Protected Magic-Link Sign-In",
+        description:
+          "Distributed IP and email limits reduce sign-in spam, SMTP requires modern TLS, callback redirects are restricted to CPBoard, email HTML is escaped, and university access uses exact configured domains plus explicit aliases instead of broad suffix matching.",
+      },
+      {
+        id: "abuse-resistant-user-actions",
+        label: "FIXED",
+        pageHref: "/dashboard",
+        pageLabel: "Account safety",
+        iconSrc: "/icon-192x192.png",
+        title: "Safer Uploads and Verification",
+        description:
+          "Avatar uploads now accept only validated, bounded PNG, JPEG, or WebP images. Verification, comments, analytics, profile views, and notification actions use durable limits or ownership checks, while every stored push endpoint is revalidated before delivery.",
+      },
+      {
+        id: "shared-content-preservation",
+        label: "FIXED",
+        pageHref: "/potd",
+        pageLabel: "Practice content",
+        iconSrc: "/icon-192x192.png",
+        title: "Shared Practice Data Is Preserved",
+        description:
+          "Deleting a normal account can no longer cascade through shared practice problems and solutions created by that person. Admin accounts require reassignment, expired operational records are cleaned separately, and the job continuously verifies the runtime database role remains least-privileged.",
+      },
+      {
+        id: "continuous-security-gate",
+        label: "NEW",
+        pageHref: "/changelog",
+        pageLabel: "Release safety",
+        iconSrc: "/icon-192x192.png",
+        title: "Continuous Security Gate",
+        description:
+          "Every main-branch change and pull request now runs locked dependency, vulnerability, Prisma, lint, type, and production-build gates. Daily signed-package and passive production checks, Dependabot, private disclosure, and an isolated owner-credential migration workflow complete the release boundary.",
+      },
+      {
+        id: "bounded-ranking-pagination",
+        label: "FIXED",
+        pageHref: "/cp-rankings",
+        pageLabel: "CP Rankings",
+        iconSrc: "/icon-192x192.png",
+        title: "Bounded Ranking Pages",
+        description:
+          "CP Rankings now clamps page requests before loading page-specific cached data and redirects out-of-range links, preventing arbitrary page values from creating redundant cache and database work.",
+      },
+    ],
+  },
+  {
     id: "2026-07-19-connection-reliability",
     publishedOn: "2026-07-19",
     headline: "Reliable Connections and Alerts",
@@ -328,7 +417,7 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         iconSrc: "/favicon.ico",
         title: "Weekly Standout",
         description:
-          "The solver with the most accepted or newly solved problems gets a weekly spotlight using verified platform activity, refreshed twice daily.",
+          "The solver with the most accepted or newly solved problems gets a weekly spotlight using verified platform activity refreshed throughout the day.",
       },
       {
         id: "cp-rankings-pagination",

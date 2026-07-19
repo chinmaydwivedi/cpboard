@@ -6,8 +6,12 @@ import {
   isPushConfigured,
   sendTestNotification,
 } from "@/lib/push-notifications";
+import { isTrustedPushEndpoint } from "@/lib/push-endpoint";
+import { JsonRequestError, readJsonBody } from "@/lib/security";
 
-const testSchema = z.object({ endpoint: z.string().url().max(1024) });
+const testSchema = z.object({
+  endpoint: z.string().url().max(1024).refine(isTrustedPushEndpoint),
+});
 const TEST_COOLDOWN_MS = 30 * 1000;
 
 export async function POST(req: NextRequest) {
@@ -23,7 +27,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const parsed = testSchema.safeParse(await req.json().catch(() => null));
+  let body: unknown;
+  try {
+    body = await readJsonBody(req, 2_048);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+  const parsed = testSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid push subscription" }, { status: 400 });
   }

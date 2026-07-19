@@ -39,16 +39,26 @@ enum SolutionLanguage {
 }
 
 model University {
-  id          String   @id @default(cuid())
-  name        String
-  shortName   String   @unique
-  emailDomain String   @unique
-  logoUrl     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  users       User[]
+  id           String                  @id @default(cuid())
+  name         String
+  shortName    String                  @unique
+  emailDomain  String                  @unique
+  logoUrl      String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  users        User[]
+  emailDomains UniversityEmailDomain[]
 
   @@index([emailDomain])
+}
+
+model UniversityEmailDomain {
+  domain       String @id
+  universityId String
+
+  university University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  @@index([universityId])
 }
 
 model User {
@@ -221,6 +231,7 @@ model PlatformProfile {
   @@index([rating])
   @@index([problemsSolved])
   @@index([verified, lastSynced, id])
+  @@index([platform, verified, lastSynced, id])
   @@index([platform, verified, rating(sort: Desc), userId])
 }
 
@@ -285,6 +296,15 @@ model ProviderRequestLease {
   updatedAt     DateTime @updatedAt
 }
 
+model RateLimitBucket {
+  key         String   @id
+  count       Int      @default(1)
+  windowStart DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+}
+
 model DailyActivity {
   id              String   @id @default(cuid())
   userId          String
@@ -338,11 +358,11 @@ model DailyPracticeProblem {
   difficulty  String?
   notes       String?
   isPublished Boolean         @default(false)
-  createdById String
+  createdById String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  createdBy User                    @relation("DailyPracticeProblemsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy User?                   @relation("DailyPracticeProblemsCreated", fields: [createdById], references: [id], onDelete: SetNull)
   solutions DailyPracticeSolution[]
   comments  DailyPracticeComment[]
   solves    PotdSolve[]
@@ -358,12 +378,12 @@ model DailyPracticeSolution {
   language    SolutionLanguage
   code        String           @db.Text
   explanation String?          @db.Text
-  createdById String
+  createdById String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
   problem   DailyPracticeProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  createdBy User                 @relation("DailyPracticeSolutionsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy User?                @relation("DailyPracticeSolutionsCreated", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@unique([problemId, language])
   @@index([createdById])

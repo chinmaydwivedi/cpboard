@@ -5,8 +5,11 @@ import { dateToDateKey, isPotdGraceSolveDateKey } from "@/lib/potd";
 import { prisma } from "@/lib/prisma";
 import {
   upsertPotdSolveAndGetStreak,
+  getPotdStreak,
   verifyPotdSolvedFromExternal,
 } from "@/lib/potd-solve";
+import { acquireJobLease } from "@/lib/job-lease";
+import { claimRateLimit, JsonRequestError, readJsonBody } from "@/lib/security";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -16,9 +19,12 @@ export async function POST(req: NextRequest) {
 
   let payload: unknown;
   try {
-    payload = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    payload = await readJsonBody(req, 4_096);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
   }
 
   const problemId =
@@ -62,6 +68,33 @@ export async function POST(req: NextRequest) {
 
   if (!problem || !problem.isPublished) {
     return NextResponse.json({ error: "Problem not available" }, { status: 404 });
+  }
+
+  const existingSolve = await prisma.potdSolve.findUnique({
+    where: { problemId_userId: { problemId: problem.id, userId: user.id } },
+    select: { isVerified: true },
+  });
+  if (existingSolve?.isVerified) {
+    return NextResponse.json({ ok: true, alreadyVerified: true, streak: await getPotdStreak(user.id) });
+  }
+
+  const attemptLimit = await claimRateLimit({
+    scope: "potd-verification",
+    identifier: `${user.id}:${problem.id}`,
+    limit: 12,
+    windowMs: 60 * 60 * 1_000,
+  });
+  if (!attemptLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many verification attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(attemptLimit.retryAfter) } },
+    );
+  }
+  if (!(await acquireJobLease(`potd-verification:${user.id}:${problem.id}`, 20_000))) {
+    return NextResponse.json(
+      { error: "A verification check just ran. Wait a few seconds and retry." },
+      { status: 429, headers: { "Retry-After": "20" } },
+    );
   }
 
   const leetcodeHandle =

@@ -1,0 +1,67 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 10
+    rebase-strategy: auto
+    groups:
+      framework-minor-patch:
+        patterns:
+          - next
+          - react
+          - react-dom
+          - eslint-config-next
+        update-types:
+          - minor
+          - patch
+      auth-minor-patch:
+        patterns:
+          - next-auth
+          - "@auth/*"
+          - nodemailer
+          - smtp-mailer
+          - "@types/nodemailer"
+        update-types:
+          - minor
+          - patch
+      prisma-minor-patch:
+        patterns:
+          - prisma
+          - "@prisma/client"
+        update-types:
+          - minor
+          - patch
+      remaining-minor-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - next
+          - react
+          - react-dom
+          - eslint-config-next
+          - next-auth
+          - "@auth/*"
+          - nodemailer
+          - smtp-mailer
+          - "@types/nodemailer"
+          - prisma
+          - "@prisma/client"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:30"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    rebase-strategy: auto

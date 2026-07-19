@@ -59,7 +59,11 @@ export async function POST() {
         results[profileIndex] = {
           platform: profile.platform,
           success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error:
+            error instanceof PlatformSyncLeaseError ||
+            error instanceof PlatformProfileNotLinkedError
+              ? error.message
+              : "Provider sync failed",
           ...(error instanceof PlatformSyncLeaseError
             ? { code: error.code, retryAfter: error.retryAfter }
             : error instanceof PlatformProfileNotLinkedError

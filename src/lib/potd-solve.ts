@@ -94,6 +94,7 @@ async function hasAcceptedLeetcodeSubmission(
       variables: { username: handle },
     }),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!response.ok) return false;
@@ -120,7 +121,7 @@ async function hasAcceptedCodeforcesSubmission(
 ): Promise<boolean> {
   const submissions = await fetchCodeforcesApi<CodeforcesSubmission[]>(
     "user.status",
-    { handle, from: 1, count: 10_000 },
+    { handle, from: 1, count: 1_000 },
   );
 
   return submissions.some((submission) => {
@@ -255,8 +256,12 @@ export async function upsertPotdSolveAndGetStreak(args: {
     },
   });
 
+  return getPotdStreak(args.userId);
+}
+
+export async function getPotdStreak(userId: string) {
   const solvedDates = await prisma.potdSolve.findMany({
-    where: { userId: args.userId, isVerified: true },
+    where: { userId, isVerified: true },
     select: { solvedDate: true },
     orderBy: { solvedDate: "asc" },
   });

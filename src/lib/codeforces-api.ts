@@ -1,6 +1,6 @@
 import "server-only";
 
-import { prisma } from "@/lib/prisma";
+import { acquireProviderRequestSlot } from "@/lib/provider-request-queue";
 
 const CODEFORCES_API = "https://codeforces.com/api";
 const REQUEST_SPACING_MS = 2_100;
@@ -14,50 +14,6 @@ type CodeforcesResponse<T> =
 
 let queueTail: Promise<void> = Promise.resolve();
 let pendingRequests = 0;
-
-function delay(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
-async function acquireDistributedRequestSlot(queuedAt: number) {
-  while (Date.now() - queuedAt <= MAX_QUEUE_WAIT_MS) {
-    const claimed = await prisma.$queryRaw<Array<{ nextAllowedAt: Date }>>`
-      INSERT INTO "ProviderRequestLease" (
-        "provider",
-        "nextAllowedAt",
-        "updatedAt"
-      )
-      VALUES (
-        ${PROVIDER_LEASE_KEY},
-        CURRENT_TIMESTAMP + (${REQUEST_SPACING_MS} * INTERVAL '1 millisecond'),
-        CURRENT_TIMESTAMP
-      )
-      ON CONFLICT ("provider") DO UPDATE
-      SET
-        "nextAllowedAt" = CURRENT_TIMESTAMP + (${REQUEST_SPACING_MS} * INTERVAL '1 millisecond'),
-        "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "ProviderRequestLease"."nextAllowedAt" <= CURRENT_TIMESTAMP
-      RETURNING "nextAllowedAt"
-    `;
-    if (claimed.length > 0) return;
-
-    const rows = await prisma.$queryRaw<Array<{ waitMs: number }>>`
-      SELECT GREATEST(
-        0,
-        CEIL(
-          EXTRACT(EPOCH FROM ("nextAllowedAt" - CURRENT_TIMESTAMP)) * 1000
-        )
-      )::integer AS "waitMs"
-      FROM "ProviderRequestLease"
-      WHERE "provider" = ${PROVIDER_LEASE_KEY}
-    `;
-    const waitMs = Math.max(50, Math.min(rows[0]?.waitMs ?? 100, 2_500));
-    if (Date.now() - queuedAt + waitMs > MAX_QUEUE_WAIT_MS) break;
-    await delay(waitMs);
-  }
-
-  throw new Error("Codeforces request queue timed out. Try again shortly.");
-}
 
 /**
  * Codeforces permits one API request every two seconds. The in-process queue
@@ -81,7 +37,12 @@ export function fetchCodeforcesApi<T>(
     if (Date.now() - queuedAt > MAX_QUEUE_WAIT_MS) {
       throw new Error("Codeforces request queue timed out. Try again shortly.");
     }
-    await acquireDistributedRequestSlot(queuedAt);
+    await acquireProviderRequestSlot({
+      key: PROVIDER_LEASE_KEY,
+      spacingMs: REQUEST_SPACING_MS,
+      maxQueueWaitMs: MAX_QUEUE_WAIT_MS,
+      queuedAt,
+    });
 
     const searchParams = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {

@@ -3,8 +3,12 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isPushConfigured } from "@/lib/push-notifications";
+import { isTrustedPushEndpoint } from "@/lib/push-endpoint";
+import { JsonRequestError, readJsonBody } from "@/lib/security";
 
-const statusSchema = z.object({ endpoint: z.string().url().max(1024) });
+const statusSchema = z.object({
+  endpoint: z.string().url().max(1024).refine(isTrustedPushEndpoint),
+});
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -12,7 +16,16 @@ export async function POST(req: NextRequest) {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const parsed = statusSchema.safeParse(await req.json().catch(() => null));
+  let body: unknown;
+  try {
+    body = await readJsonBody(req, 2_048);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+  const parsed = statusSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid push subscription" }, { status: 400 });
   }

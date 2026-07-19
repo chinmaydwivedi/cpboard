@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+import { JsonRequestError, readJsonBody } from "@/lib/security";
 
 export async function PATCH(req: NextRequest) {
   const session = await auth();
@@ -12,8 +13,25 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await readJsonBody(req, 4_096);
+  } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Invalid profile update" }, { status: 400 });
+  }
   const { username, name } = body as { username?: string; name?: string };
+  if (
+    (username !== undefined && typeof username !== "string") ||
+    (name !== undefined && typeof name !== "string")
+  ) {
+    return NextResponse.json({ error: "Invalid profile update" }, { status: 400 });
+  }
 
   const updates: Record<string, string> = {};
 

@@ -39,6 +39,13 @@ export class PlatformHandleAlreadyClaimedError extends Error {
   }
 }
 
+export class StalePlatformSyncError extends Error {
+  constructor() {
+    super("A newer platform update replaced this sync");
+    this.name = "StalePlatformSyncError";
+  }
+}
+
 export type PlatformSyncOptions = {
   /** Explicit onboarding/connect flows may create a profile. */
   allowProfileCreate?: boolean;
@@ -125,6 +132,17 @@ export async function syncUserPlatform(
     const mergedData = await prisma.$transaction(async (tx) => {
       await lockPlatformProfileTransaction(tx, userId, platform);
 
+      const currentLeases = await tx.$queryRaw<Array<{ leaseToken: string }>>`
+        SELECT "leaseToken"
+        FROM "PlatformSyncLease"
+        WHERE "userId" = ${userId}
+          AND "platform" = CAST(${platform} AS "Platform")
+        FOR UPDATE
+      `;
+      if (currentLeases[0]?.leaseToken !== lease.leaseToken) {
+        throw new StalePlatformSyncError();
+      }
+
       const currentProfile = await tx.platformProfile.findUnique({
         where: { userId_platform: { userId, platform } },
         select: {
@@ -144,6 +162,12 @@ export async function syncUserPlatform(
 
       if (!currentProfile && !allowProfileCreate) {
         throw new PlatformProfileNotLinkedError();
+      }
+      if (
+        (currentProfile ? normalizeHandle(currentProfile.handle) : null) !==
+        (initialProfile ? normalizeHandle(initialProfile.handle) : null)
+      ) {
+        throw new StalePlatformSyncError();
       }
 
       const normalizedHandle = normalizeHandle(data.handle);
@@ -169,15 +193,15 @@ export async function syncUserPlatform(
             ? data.rating
             : (previousData?.rating ?? data.rating),
         maxRating: Math.max(data.maxRating, previousData?.maxRating ?? 0),
-        problemsSolved:
-          data.problemsSolved > 0
-            ? data.problemsSolved
-            : (previousData?.problemsSolved ?? data.problemsSolved),
+        problemsSolved: Math.max(
+          data.problemsSolved,
+          previousData?.problemsSolved ?? 0,
+        ),
         rank: data.rank || previousData?.rank || null,
-        contestsCount:
-          data.contestsCount > 0
-            ? data.contestsCount
-            : (previousData?.contestsCount ?? data.contestsCount),
+        contestsCount: Math.max(
+          data.contestsCount,
+          previousData?.contestsCount ?? 0,
+        ),
       };
 
       const profileData = {
@@ -267,10 +291,12 @@ export async function syncUserPlatform(
     const shouldBackoff =
       !(normalizedError instanceof PlatformProfileNotLinkedError) &&
       !(normalizedError instanceof PlatformVerificationRequiredError) &&
-      !(normalizedError instanceof PlatformHandleAlreadyClaimedError);
+      !(normalizedError instanceof PlatformHandleAlreadyClaimedError) &&
+      !(normalizedError instanceof StalePlatformSyncError);
     const shouldCancelLease =
       normalizedError instanceof PlatformProfileNotLinkedError ||
-      normalizedError instanceof PlatformVerificationRequiredError;
+      normalizedError instanceof PlatformVerificationRequiredError ||
+      normalizedError instanceof StalePlatformSyncError;
     const cleanupTasks: Promise<unknown>[] = [
       shouldBackoff
         ? completePlatformSyncLease(lease, { success: false, error: message })
@@ -281,7 +307,8 @@ export async function syncUserPlatform(
     if (
       !(normalizedError instanceof PlatformProfileNotLinkedError) &&
       !(normalizedError instanceof PlatformVerificationRequiredError) &&
-      !(normalizedError instanceof PlatformHandleAlreadyClaimedError)
+      !(normalizedError instanceof PlatformHandleAlreadyClaimedError) &&
+      !(normalizedError instanceof StalePlatformSyncError)
     ) {
       cleanupTasks.push(
         prisma.$transaction(async (tx) => {

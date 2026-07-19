@@ -1,0 +1,5 @@
+Contact: mailto:pes1ug23cs165@pesu.pes.edu
+Expires: 2027-07-18T23:59:59.000Z
+Preferred-Languages: en
+Canonical: https://cpboard-three.vercel.app/.well-known/security.txt
+Policy: https://github.com/chinmaydwivedi/cpboard/security/policy

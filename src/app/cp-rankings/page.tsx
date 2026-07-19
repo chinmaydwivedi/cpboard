@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { unstable_cache } from "next/cache";
 import { CPRankingsClient } from "./cp-rankings-client";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+import { redirect } from "next/navigation";
 
 export const revalidate = 60;
 const PAGE_SIZE = 10;
@@ -19,8 +20,8 @@ type RatingSummary = {
   internationalMasterPlus: number;
 };
 
-const getCPData = unstable_cache(
-  async (requestedPage: number) => {
+const getCPSummary = unstable_cache(
+  async () => {
     try {
     const where = {
       platform: "CODEFORCES" as const,
@@ -82,44 +83,6 @@ const getCPData = unstable_cache(
       master: 0,
       internationalMasterPlus: 0,
     };
-    const totalUsers = summary.totalUsers;
-    const totalPages = Math.max(1, Math.ceil(totalUsers / PAGE_SIZE));
-    const page = Math.min(requestedPage, totalPages);
-
-    const cfProfiles = await prisma.platformProfile.findMany({
-      where,
-      select: {
-        handle: true,
-        rating: true,
-        maxRating: true,
-        rank: true,
-        contestsCount: true,
-        user: {
-          select: {
-            username: true,
-            name: true,
-            avatarUrl: true,
-            university: { select: { shortName: true } },
-          },
-        },
-      },
-      orderBy: [{ rating: "desc" }, { userId: "asc" }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    });
-
-    const users = cfProfiles.map((p, i) => ({
-      rank: (page - 1) * PAGE_SIZE + i + 1,
-      username: p.user.username,
-      name: p.user.name,
-      avatarUrl: p.user.avatarUrl,
-      handle: p.handle,
-      rating: p.rating,
-      maxRating: p.maxRating,
-      cfRank: p.rank,
-      universityShortName: p.user.university.shortName,
-      contestsCount: p.contestsCount,
-    }));
     const topUsers = topProfiles.map((p, i) => ({
       rank: i + 1,
       username: p.user.username,
@@ -144,29 +107,73 @@ const getCPData = unstable_cache(
     ];
 
     return {
-      users,
       topUsers,
       distribution,
-      page,
-      totalPages,
-      totalUsers,
+      totalUsers: summary.totalUsers,
       highestRating: summary.highestRating,
       averageRating: summary.averageRating,
     };
   } catch {
     return {
-      users: [],
       topUsers: [],
       distribution: [],
-      page: 1,
-      totalPages: 1,
       totalUsers: 0,
       highestRating: 0,
       averageRating: 0,
     };
     }
   },
-  ["cp-rankings-data-v3"],
+  ["cp-rankings-summary-v1"],
+  { revalidate: 60, tags: [CACHE_TAGS.cpRankings] },
+);
+
+const getCPPage = unstable_cache(
+  async (page: number) => {
+    try {
+      const profiles = await prisma.platformProfile.findMany({
+        where: {
+          platform: "CODEFORCES",
+          rating: { gt: 0 },
+          verified: true,
+          user: { onboardingComplete: true },
+        },
+        select: {
+          handle: true,
+          rating: true,
+          maxRating: true,
+          rank: true,
+          contestsCount: true,
+          user: {
+            select: {
+              username: true,
+              name: true,
+              avatarUrl: true,
+              university: { select: { shortName: true } },
+            },
+          },
+        },
+        orderBy: [{ rating: "desc" }, { userId: "asc" }],
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+      });
+
+      return profiles.map((profile, index) => ({
+        rank: (page - 1) * PAGE_SIZE + index + 1,
+        username: profile.user.username,
+        name: profile.user.name,
+        avatarUrl: profile.user.avatarUrl,
+        handle: profile.handle,
+        rating: profile.rating,
+        maxRating: profile.maxRating,
+        cfRank: profile.rank,
+        universityShortName: profile.user.university.shortName,
+        contestsCount: profile.contestsCount,
+      }));
+    } catch {
+      return [];
+    }
+  },
+  ["cp-rankings-page-v1"],
   { revalidate: 60, tags: [CACHE_TAGS.cpRankings] },
 );
 
@@ -181,7 +188,13 @@ export default async function CPRankingsPage({
     10,
   );
   const requestedPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-  const data = await getCPData(requestedPage);
+  const summary = await getCPSummary();
+  const totalPages = Math.max(1, Math.ceil(summary.totalUsers / PAGE_SIZE));
+  if (requestedPage > totalPages) {
+    redirect(totalPages === 1 ? "/cp-rankings" : `/cp-rankings?page=${totalPages}`);
+  }
+  const users = await getCPPage(requestedPage);
+  const data = { ...summary, users, page: requestedPage, totalPages };
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">

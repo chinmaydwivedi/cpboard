@@ -15,8 +15,9 @@ A multi-university competitive programming leaderboard that aggregates profiles 
 - **Weekly standout** — Cross-platform recognition based on accepted/newly solved activity each week
 - **University email verification** — Students sign in with magic links sent to a registered university email domain
 - **Multi-university support** — Admin-configurable email domains for any university
-- **Scheduled updates** — Profiles refresh twice daily, while contest reminders and leader checks run every ten minutes
-- **Optimized update pipeline** — Bounded platform concurrency, bulk activity writes, precise cache invalidation, and deferred telemetry
+- **Scheduled updates** — Provider-isolated lanes run every ten minutes and refresh each healthy profile on a 12-hour eligibility cycle
+- **Optimized update pipeline** — Parallel provider lanes, durable leases, bulk activity writes, precise cache invalidation, and deferred telemetry
+- **Defense in depth** — CSP, same-origin mutation checks, distributed abuse limits, bounded uploads, isolated job secrets, and automated security gates
 
 ## Tech Stack
 
@@ -24,7 +25,7 @@ A multi-university competitive programming leaderboard that aggregates profiles 
 |-------|-----------|
 | Framework | Next.js 16 (App Router, Server Components) |
 | Database | PostgreSQL (Neon serverless) + Prisma ORM |
-| Auth | NextAuth.js v5 + Nodemailer over SMTP (email magic links) |
+| Auth | NextAuth.js v5 + patched SMTP mailer (email magic links) |
 | UI | Tailwind CSS v4 + shadcn/ui + Framer Motion |
 | Charts | Recharts |
 | Deployment | Vercel + GitHub Actions schedules |
@@ -33,7 +34,7 @@ A multi-university competitive programming leaderboard that aggregates profiles 
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24 (see `.nvmrc`)
 - PostgreSQL database (recommended: [Neon](https://neon.tech) for free serverless Postgres)
 - SMTP credentials (Brevo is configured by default) for magic-link emails
 
@@ -55,12 +56,13 @@ cp .env.example .env
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string |
-| `DIRECT_URL` | Recommended unpooled Neon connection string for Prisma migrations; omit locally to fall back to `DATABASE_URL` |
+| `DIRECT_URL` | Unpooled owner connection used only by local or isolated migration tooling; never expose it to the application runtime |
 | `AUTH_SECRET` | Random secret (`openssl rand -base64 32`) |
 | `SMTP_USER` | SMTP username for magic-link email |
 | `SMTP_PASSWORD` | SMTP password for magic-link email |
 | `EMAIL_FROM` | Sender email for magic links |
-| `CRON_SECRET` | Secret for cron job auth |
+| `PLATFORM_SYNC_CRON_SECRET` | Random secret used only by the provider refresh job |
+| `NOTIFICATION_CRON_SECRET` | Different random secret used only by the notification job |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Public VAPID key used by the browser to subscribe to push alerts |
 | `VAPID_PRIVATE_KEY` | Private VAPID key used only by the server to send push alerts |
 | `VAPID_SUBJECT` | Contact URI for the push sender, such as `mailto:admin@example.com` |
@@ -72,7 +74,7 @@ Prisma reads the database URL while its client is generated during install, so
 create `.env` first as shown above.
 
 ```bash
-npm install
+npm ci
 ```
 
 ### 4. Configure Browser Notifications
@@ -161,14 +163,14 @@ src/
 
 1. Push to GitHub
 2. Import into [Vercel](https://vercel.com)
-3. Add the database, auth, SMTP, cron, and three VAPID variables from `.env.example` to Vercel project settings; use Neon’s pooled URL for `DATABASE_URL` and its unpooled URL for `DIRECT_URL`
+3. Add the database, auth, SMTP, two cron secrets, and three VAPID variables from `.env.example` to Vercel project settings. Use a least-privilege pooled Neon role for `DATABASE_URL`. Do **not** add `DIRECT_URL` or any owner credential to Vercel
 4. Add a Neon PostgreSQL database (or any Postgres)
 5. Keep the production build command as `npm run build`
-6. Before promoting a production deployment, create a Neon restore point, run `npx prisma migrate deploy` with `DIRECT_URL`, and then promote the already-built deployment
-7. Copy the same `CRON_SECRET` into the GitHub Actions secret `CPBOARD_CRON_SECRET`, and set the repository variable `CPBOARD_PRODUCTION_URL` to the stable production origin without a trailing slash
-8. The included GitHub Actions workflows call `/api/cron/sync-all` twice daily and `/api/cron/notifications` every ten minutes
+6. Store the owner/unpooled URL only as the `CPBOARD_MIGRATION_DATABASE_URL` secret in the protected GitHub `production` environment. Before promotion, create a Neon restore point and manually run the **Production database migration** workflow; its install step never receives the owner credential
+7. Copy `PLATFORM_SYNC_CRON_SECRET` to the Actions secret `CPBOARD_PLATFORM_SYNC_SECRET`, copy `NOTIFICATION_CRON_SECRET` to `CPBOARD_NOTIFICATION_CRON_SECRET`, and set `CPBOARD_PRODUCTION_URL` to the stable production origin without a trailing slash
+8. The maintenance workflow starts all four provider lanes in parallel every ten minutes, then runs notifications against the newly refreshed scores. The separate platform workflow is a manual recovery path
 
-The schedules live in GitHub Actions because this project currently deploys on Vercel Hobby, whose cron jobs cannot run every ten minutes. The notification job refreshes the saved contest schedule, sends due reminders, and checks for a new global leaderboard leader; database delivery records and job leases prevent duplicates if a workflow is delayed or retried. The sync workflow also fails visibly when every attempted profile fails, instead of reporting a healthy transport-only run.
+The schedule lives in GitHub Actions because this project currently deploys on Vercel Hobby, whose cron jobs cannot run every ten minutes. Codeforces, LeetCode, AtCoder, and CodeChef use independent Vercel invocations and database job leases, so a slow lane cannot block the others. Each successful profile becomes eligible again after 12 hours; failures use bounded backoff. The workflow then refreshes contests, sends due reminders, and checks for a new global leader. Aggregate health checks fail visibly when a provider lane is unhealthy.
 
 `vercel.json` pins server functions to Singapore (`sin1`) to match the current Neon `ap-southeast-1` database. Change both together if the database moves regions.
 
@@ -182,7 +184,20 @@ After deployment, sign in on an HTTPS browser, enable notifications from the Das
 - Slow upstream requests have deadlines so one provider cannot hold an entire sync or scheduled invocation open indefinitely.
 - Analytics, profile-view counters, tours, and large chart libraries stay outside the critical response or initial JavaScript path where possible.
 - Codeforces work uses both a bounded in-process queue and a Neon-backed request lease. Sync, verification, POTD, and recommendation requests therefore respect the provider spacing across serverless instances.
-- Failed scheduled syncs receive exponential backoff, while successful profiles rotate by last-attempt time so one broken handle cannot starve the rest of the queue.
+- Failed scheduled syncs receive exponential backoff, while successful profiles rotate on a 12-hour eligibility window so one broken handle cannot starve the rest of the queue.
+- Lease tokens fence every provider write: a disconnected or replaced handle cannot be overwritten when an older network response arrives late.
+- AtCoder and Codeforces requests use shared Neon-backed pacing, so independent serverless instances still respect upstream limits.
+
+## Security Model
+
+- API mutations reject cross-site browser requests, API responses are non-cacheable, and production pages send an enforced CSP plus HSTS, frame, MIME, referrer, permissions, opener, and resource-policy headers.
+- Magic-link and domain checks use atomic Neon-backed per-IP and per-address limits. University domains are exact matches; explicitly trusted aliases live in `UniversityEmailDomain`.
+- Cron routes accept POST only, use separate secrets, compare credentials in constant time, and expose aggregate results without user IDs or raw provider errors.
+- Avatar data is restricted to validated PNG, JPEG, or WebP images up to 64KB and safe dimensions. External verification work has deadlines, replay checks, cooldowns, and bounded provider reads.
+- Push delivery revalidates every stored endpoint against known browser push services before making a request, and housekeeping removes unsafe legacy rows plus expired operational data. The same job continuously asserts that the runtime Neon role is not an owner and has no object-creation privileges.
+- Shared POTD author relations use `SET NULL`, so ordinary account deletion preserves community content. Admin accounts must be reassigned before deletion.
+- `.github/workflows/security.yml` performs locked installs, dependency-tree and high-severity audit checks, Prisma validation, lint, type checking, and a production build. Its separate daily passive probe verifies production headers and API boundaries; Dependabot and the private disclosure policy in `SECURITY.md` complete the maintenance loop.
+- No application can be guaranteed immune to every attack. Rotate exposed credentials immediately, keep Neon owner credentials out of runtime functions, review security alerts, and restore-test backups regularly.
 
 ## Handle Ownership Verification
 
@@ -199,7 +214,7 @@ After deployment, sign in on an HTTPS browser, enable notifications from the Das
 |----------|-----|-----------|
 | Codeforces | [Official API](https://codeforces.com/apiHelp) — `user.info`, `user.status`, `user.rating` | 1 req/2s |
 | LeetCode | GraphQL at `leetcode.com/graphql` — `matchedUser`, `recentAcSubmissionList`, `userContestRanking`, `userCalendar` | Undocumented; requests use deadlines and user-triggered checks |
-| AtCoder | [Kenkoooo API](https://github.com/kenkoooo/AtCoderProblems) — `v3/user/submissions` | 1 req/s |
+| AtCoder | [Kenkoooo API](https://github.com/kenkoooo/AtCoderProblems) — `v3/user/ac_rank` plus retained `v3/user/submissions` activity | Shared pacing of at least 1.1s between requests |
 | CodeChef | [CP Rating API](https://cp-rating-api.vercel.app) — `/codechef/{username}` | Generous |
 
 ## License

@@ -185,7 +185,22 @@ export function parseCommentSegments(input: string): CommentSegment[] {
 export function isValidProblemUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+    const supportedHosts = [
+      "leetcode.com",
+      "codeforces.com",
+      "atcoder.jp",
+      "codechef.com",
+    ];
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      supportedHosts.some(
+        (host) => hostname === host || hostname.endsWith(`.${host}`),
+      )
+    );
   } catch {
     return false;
   }

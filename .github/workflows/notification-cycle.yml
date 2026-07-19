@@ -1,4 +1,4 @@
-name: Notification cycle
+name: Background maintenance cycle
 
 on:
   schedule:
@@ -9,22 +9,63 @@ permissions:
   contents: read
 
 concurrency:
-  group: cpboard-notification-cycle
+  group: cpboard-background-maintenance
   cancel-in-progress: false
 
 jobs:
-  notify:
+  maintain:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
-      - name: Trigger leaderboard and contest alerts
+      - name: Refresh provider lanes and send alerts
         env:
-          CPBOARD_CRON_SECRET: ${{ secrets.CPBOARD_CRON_SECRET }}
+          CPBOARD_PLATFORM_SYNC_SECRET: ${{ secrets.CPBOARD_PLATFORM_SYNC_SECRET }}
+          CPBOARD_NOTIFICATION_CRON_SECRET: ${{ secrets.CPBOARD_NOTIFICATION_CRON_SECRET }}
           CPBOARD_PRODUCTION_URL: ${{ vars.CPBOARD_PRODUCTION_URL }}
         run: |
-          test -n "$CPBOARD_CRON_SECRET"
+          test -n "$CPBOARD_PLATFORM_SYNC_SECRET"
+          test -n "$CPBOARD_NOTIFICATION_CRON_SECRET"
           test -n "$CPBOARD_PRODUCTION_URL"
+
+          platforms=(CODEFORCES LEETCODE ATCODER CODECHEF)
+          pids=()
+          for platform in "${platforms[@]}"; do
+            curl \
+              --request POST \
+              --fail \
+              --silent \
+              --show-error \
+              --retry 2 \
+              --retry-all-errors \
+              --connect-timeout 10 \
+              --max-time 70 \
+              --header "Authorization: Bearer $CPBOARD_PLATFORM_SYNC_SECRET" \
+              --output "/tmp/cpboard-sync-${platform}.json" \
+              "$CPBOARD_PRODUCTION_URL/api/cron/sync-all?platform=$platform" &
+            pids+=("$!")
+          done
+
+          failed=0
+          for pid in "${pids[@]}"; do
+            if ! wait "$pid"; then
+              failed=1
+            fi
+          done
+
+          for platform in "${platforms[@]}"; do
+            result="/tmp/cpboard-sync-${platform}.json"
+            if test -s "$result"; then
+              jq -c '{platform, jobSkipped, selected, attempted, successful, failed, skipped, remainingDue, durationMs, reason}' "$result"
+              if ! jq -e '(.jobSkipped == true) or (.attempted == 0) or (.successful > 0) or (.failed == 0)' "$result" > /dev/null; then
+                failed=1
+              fi
+            else
+              failed=1
+            fi
+          done
+
           curl \
+            --request POST \
             --fail \
             --silent \
             --show-error \
@@ -32,7 +73,43 @@ jobs:
             --retry-all-errors \
             --connect-timeout 10 \
             --max-time 70 \
-            --header "Authorization: Bearer $CPBOARD_CRON_SECRET" \
+            --header "Authorization: Bearer $CPBOARD_PLATFORM_SYNC_SECRET" \
+            --output /tmp/cpboard-housekeeping-result.json \
+            "$CPBOARD_PRODUCTION_URL/api/cron/housekeeping" &
+          housekeeping_pid="$!"
+
+          curl \
+            --request POST \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 2 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 70 \
+            --header "Authorization: Bearer $CPBOARD_NOTIFICATION_CRON_SECRET" \
             --output /tmp/cpboard-notification-result.json \
-            "$CPBOARD_PRODUCTION_URL/api/cron/notifications"
-          jq -c '{success, skipped, reason, sourceAvailable}' /tmp/cpboard-notification-result.json
+            "$CPBOARD_PRODUCTION_URL/api/cron/notifications" &
+          notification_pid="$!"
+
+          if ! wait "$housekeeping_pid"; then
+            failed=1
+          fi
+          if ! wait "$notification_pid"; then
+            failed=1
+          fi
+
+          if test -s /tmp/cpboard-housekeeping-result.json; then
+            jq -c '{success, skipped, reason, databaseRoleRestricted, deleted, durationMs}' /tmp/cpboard-housekeeping-result.json
+            jq -e '.success == true and .databaseRoleRestricted == true' /tmp/cpboard-housekeeping-result.json > /dev/null || failed=1
+          else
+            failed=1
+          fi
+          if test -s /tmp/cpboard-notification-result.json; then
+            jq -c '{success, skipped, reason, sourceAvailable}' /tmp/cpboard-notification-result.json
+            jq -e '.success == true' /tmp/cpboard-notification-result.json > /dev/null || failed=1
+          else
+            failed=1
+          fi
+
+          exit "$failed"

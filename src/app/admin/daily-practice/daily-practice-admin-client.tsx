@@ -46,7 +46,7 @@ type DailyPracticeProblemItem = {
     id: string;
     username: string;
     name: string | null;
-  };
+  } | null;
   solutions: {
     id: string;
     language: SolutionLanguage;
