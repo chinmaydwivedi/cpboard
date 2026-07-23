@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { prisma } from "@/lib/prisma";
 
 export type Contest = {
   id: string;
@@ -29,12 +30,13 @@ const MAX_CONTEST_TITLE_LENGTH = 180;
 const MAX_CONTEST_URL_LENGTH = 1_000;
 const MAX_CONTEST_DURATION_SECONDS = 31 * 24 * 60 * 60;
 
-const SUPPORTED_PLATFORMS = new Set([
+const SUPPORTED_PLATFORM_LIST = [
   "codeforces.com",
   "leetcode.com",
   "atcoder.jp",
   "codechef.com",
-]);
+];
+const SUPPORTED_PLATFORMS = new Set(SUPPORTED_PLATFORM_LIST);
 
 function isOfficialContestUrl(value: string, platform: string) {
   if (value.length > MAX_CONTEST_URL_LENGTH) return false;
@@ -82,6 +84,35 @@ const CONTESTS_API_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndidHh6ZnphenFibXFyd2RlaHdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3OTE5MDgsImV4cCI6MjA4MTM2NzkwOH0.orAbLkg-K5IVoHwG-PKYwNroA_JpB4zV7iNjVqExXqQ";
 const CONTEST_CACHE_SECONDS = 30 * 60;
 
+function toContest(row: ContestRow): Contest | null {
+  const startTime = new Date(row.start_time).getTime();
+  const endTime = new Date(row.end_time).getTime();
+  if (
+    !Number.isFinite(startTime) ||
+    !Number.isFinite(endTime) ||
+    endTime <= startTime
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    title: row.title.trim(),
+    url: row.url,
+    platform: row.platform,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    durationSeconds: row.duration_seconds,
+  };
+}
+
+function uniqueContests(contests: Contest[]) {
+  return contests.filter(
+    (contest, index, all) =>
+      all.findIndex((candidate) => candidate.id === contest.id) === index,
+  );
+}
+
 async function requestContestSnapshot(): Promise<Contest[]> {
   const requestedAt = new Date();
   const queryStart = new Date(
@@ -92,6 +123,7 @@ async function requestContestSnapshot(): Promise<Contest[]> {
     select: "id,title,url,platform,start_time,end_time,duration_seconds",
     start_time: `gte.${queryStart.toISOString()}`,
     and: `(start_time.lte.${until.toISOString()})`,
+    platform: `in.(${SUPPORTED_PLATFORM_LIST.join(",")})`,
     order: "start_time.asc",
     limit: "300",
   });
@@ -110,35 +142,11 @@ async function requestContestSnapshot(): Promise<Contest[]> {
     throw new Error("Contest provider returned an invalid payload");
   }
 
-  const rows = payload.filter(isContestRow);
-  if (rows.length !== payload.length) {
-    throw new Error("Contest provider returned invalid contest data");
-  }
-
-  const contests = rows.map((contest) => {
-    const startTime = new Date(contest.start_time).getTime();
-    const endTime = new Date(contest.end_time).getTime();
-    if (
-      !Number.isFinite(startTime) ||
-      !Number.isFinite(endTime) ||
-      endTime <= startTime
-    ) {
-      throw new Error("Contest provider returned invalid schedule data");
-    }
-    return {
-      id: contest.id,
-      title: contest.title.trim(),
-      url: contest.url,
-      platform: contest.platform,
-      startTime: contest.start_time,
-      endTime: contest.end_time,
-      durationSeconds: contest.duration_seconds,
-    };
-  });
-
-  return contests.filter(
-    (contest, index, all) =>
-      all.findIndex((candidate) => candidate.id === contest.id) === index,
+  return uniqueContests(
+    payload
+      .filter(isContestRow)
+      .map(toContest)
+      .filter((contest): contest is Contest => contest !== null),
   );
 }
 
@@ -155,6 +163,24 @@ function onlyUpcomingContests(contests: Contest[]) {
   );
 }
 
+async function getStoredContestSnapshot(): Promise<Contest[]> {
+  const rows = await prisma.scheduledContest.findMany({
+    where: { startTime: { gte: new Date() } },
+    orderBy: { startTime: "asc" },
+    take: 300,
+  });
+
+  return rows.map((contest) => ({
+    id: contest.id,
+    title: contest.title,
+    url: contest.url,
+    platform: contest.platform,
+    startTime: contest.startTime.toISOString(),
+    endTime: contest.endTime.toISOString(),
+    durationSeconds: contest.durationSeconds,
+  }));
+}
+
 export async function getUpcomingContestFeed({
   fresh = false,
 }: { fresh?: boolean } = {}): Promise<ContestFeedResult> {
@@ -165,6 +191,16 @@ export async function getUpcomingContestFeed({
     return { contests: onlyUpcomingContests(contests), available: true };
   } catch {
     if (fresh) console.warn("Contest refresh is temporarily unavailable");
+    if (!fresh) {
+      try {
+        return {
+          contests: onlyUpcomingContests(await getStoredContestSnapshot()),
+          available: true,
+        };
+      } catch {
+        console.warn("Stored contest schedule is temporarily unavailable");
+      }
+    }
     return { contests: [], available: false };
   }
 }
