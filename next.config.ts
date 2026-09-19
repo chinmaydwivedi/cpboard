@@ -3,7 +3,11 @@ import type { NextConfig } from "next";
 const allowedDevOrigins = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
   .split(",")
   .map((origin) => origin.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((origin) => {
+    const url = new URL(origin.includes("://") ? origin : `http://${origin}`);
+    return url.hostname;
+  });
 
 const nextConfig: NextConfig = {
   allowedDevOrigins,
