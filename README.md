@@ -58,6 +58,7 @@ cp .env.example .env
 | `DATABASE_URL` | PostgreSQL connection string |
 | `DIRECT_URL` | Unpooled owner connection used only by local or isolated migration tooling; never expose it to the application runtime |
 | `AUTH_SECRET` | Random secret (`openssl rand -base64 32`) |
+| `AUTH_TRUST_HOST` | Set to `true` for local production-mode runs or a trusted proxy that validates host headers |
 | `SMTP_USER` | SMTP username for magic-link email |
 | `SMTP_PASSWORD` | SMTP password for magic-link email |
 | `EMAIL_FROM` | Sender email for magic links |
