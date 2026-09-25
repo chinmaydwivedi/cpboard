@@ -30,7 +30,10 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CPBoard — University Competitive Programming Leaderboard",
+  title: {
+    default: "CPBoard — University Competitive Programming Leaderboard",
+    template: "%s — CPBoard",
+  },
   description:
     "Track your competitive programming progress across Codeforces, LeetCode, AtCoder, and CodeChef. Compete on your university's leaderboard.",
   manifest: "/manifest.webmanifest",

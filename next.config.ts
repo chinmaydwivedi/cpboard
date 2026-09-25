@@ -4,9 +4,14 @@ const allowedDevOrigins = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean)
-  .map((origin) => {
-    const url = new URL(origin.includes("://") ? origin : `http://${origin}`);
-    return url.hostname;
+  .flatMap((origin) => {
+    try {
+      const url = new URL(origin.includes("://") ? origin : `http://${origin}`);
+      return url.hostname ? [url.hostname] : [];
+    } catch {
+      console.warn(`Ignoring invalid NEXT_ALLOWED_DEV_ORIGINS entry: ${origin}`);
+      return [];
+    }
   });
 
 const nextConfig: NextConfig = {

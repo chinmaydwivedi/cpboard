@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { unstable_cache } from "next/cache";
 import { CPRankingsClient } from "./cp-rankings-client";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { withReadRetry } from "@/lib/read-retry";
 import { redirect } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "CP Rankings",
+  description: "Codeforces podium, rating distribution, and full rankings.",
+};
 
 export const revalidate = 60;
 export const dynamic = "force-dynamic";

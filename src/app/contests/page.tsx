@@ -6,7 +6,7 @@ import { ContestsClient } from "./contests-client";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Contest Calendar — CPBoard",
+  title: "Contest Calendar",
   description: "Upcoming Codeforces, LeetCode, AtCoder, and CodeChef contests in one calendar.",
 };
 

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { unstable_cache } from "next/cache";
 import {
@@ -9,6 +10,11 @@ import { LeaderboardClient } from "./leaderboard-client";
 import type { LeaderboardEntry, WeeklyLeader } from "@/types";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { withReadRetry } from "@/lib/read-retry";
+
+export const metadata: Metadata = {
+  title: "Leaderboard",
+  description: "Global and university rankings across Codeforces, LeetCode, AtCoder, and CodeChef.",
+};
 
 export const revalidate = 60;
 export const dynamic = "force-dynamic";

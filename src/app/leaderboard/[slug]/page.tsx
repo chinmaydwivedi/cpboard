@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { computeTotalSolved, computeBestRating } from "@/lib/scoring";
+import {
+  compareLeaderboardScores,
+  computeBestRating,
+  computeTotalSolved,
+} from "@/lib/scoring";
 import { computePotdStreak, dateToDateKey } from "@/lib/potd";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Badge } from "@/components/ui/badge";
@@ -107,12 +111,7 @@ export default async function UniversityLeaderboardPage({
       })),
       rank: 0,
     }))
-    .sort(
-      (a, b) =>
-        b.totalSolved - a.totalSolved ||
-        b.bestRating - a.bestRating ||
-        a.username.localeCompare(b.username)
-    )
+    .sort(compareLeaderboardScores)
     .map((e, i) => ({ ...e, rank: i + 1 }));
 
   return (
