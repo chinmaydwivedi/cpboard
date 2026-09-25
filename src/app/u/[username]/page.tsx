@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { after } from "next/server";
 import { getCurrentSession } from "@/lib/session";
@@ -7,6 +8,17 @@ import type { HeatmapData } from "@/types";
 import { claimRateLimit } from "@/lib/security";
 
 export const revalidate = 60;
+
+// Uses only the URL segment: no database read, so signed-out visitors learn
+// nothing beyond what the link already shows.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string }>;
+}): Promise<Metadata> {
+  const { username } = await params;
+  return { title: `@${username}` };
+}
 
 export default async function ProfilePage({
   params,

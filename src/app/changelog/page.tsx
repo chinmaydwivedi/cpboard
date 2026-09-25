@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { CHANGELOG_RELEASES } from "@/lib/changelog";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,11 @@ function formatDate(iso: string) {
     year: "numeric",
   });
 }
+
+export const metadata: Metadata = {
+  title: "Changelog",
+  description: "What's new in CPBoard.",
+};
 
 export default function ChangelogPage() {
   const latest = CHANGELOG_RELEASES[0];

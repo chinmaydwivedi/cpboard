@@ -1,9 +1,14 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { DashboardClient } from "./dashboard-client";
 import { fetchCombinedTopicRadar } from "@/lib/topic-radar";
 import { isPushConfigured } from "@/lib/push-notifications";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+};
 
 export default async function DashboardPage() {
   const todayIso = new Date().toISOString().slice(0, 10);

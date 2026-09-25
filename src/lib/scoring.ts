@@ -9,6 +9,8 @@ export function computeTotalSolved(profiles: ScoreProfile[]): number {
   return profiles.reduce((sum, p) => sum + p.problemsSolved, 0);
 }
 
+// Intentionally LeetCode-only: ratings from different platforms are not on a
+// comparable scale. Shown as "LC Rating" and used as the leaderboard tiebreak.
 export function computeBestRating(profiles: ScoreProfile[]): number {
   const leetcode = profiles.find((p) => p.platform === "LEETCODE");
   if (!leetcode) return 0;
