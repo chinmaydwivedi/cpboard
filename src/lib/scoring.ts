@@ -17,12 +17,6 @@ export function computeBestRating(profiles: ScoreProfile[]): number {
   return leetcode.rating || leetcode.maxRating || 0;
 }
 
-export function computeCompositeScore(profiles: ScoreProfile[]): number {
-  const totalSolved = computeTotalSolved(profiles);
-  const bestRating = computeBestRating(profiles);
-  return totalSolved * 10 + bestRating;
-}
-
 export function compareLeaderboardScores(
   a: { totalSolved: number; bestRating: number; username: string },
   b: { totalSolved: number; bestRating: number; username: string },

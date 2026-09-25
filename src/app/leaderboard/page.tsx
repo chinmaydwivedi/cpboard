@@ -129,7 +129,7 @@ const getLeaderboard = unstable_cache(
       .sort(
         (a, b) =>
           b.submissionCount - a.submissionCount ||
-          a.username.localeCompare(b.username),
+          (a.username < b.username ? -1 : a.username > b.username ? 1 : 0),
       )[0];
 
     return {
