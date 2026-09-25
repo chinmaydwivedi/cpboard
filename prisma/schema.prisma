@@ -48,8 +48,6 @@ model University {
   updatedAt    DateTime                @updatedAt
   users        User[]
   emailDomains UniversityEmailDomain[]
-
-  @@index([emailDomain])
 }
 
 model UniversityEmailDomain {
@@ -94,7 +92,6 @@ model User {
   platformSyncLeases              PlatformSyncLease[]
 
   @@index([universityId])
-  @@index([username])
 }
 
 model NotificationPreference {
@@ -196,6 +193,7 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expires])
 }
 
 model VerificationToken {
@@ -204,6 +202,7 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@index([expires])
 }
 
 model PlatformProfile {
@@ -227,7 +226,6 @@ model PlatformProfile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, platform])
-  @@index([platform])
   @@index([rating])
   @@index([problemsSolved])
   @@index([verified, lastSynced, id])
@@ -329,7 +327,6 @@ model SyncLog {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
   @@index([syncedAt])
   @@index([userId, platform, status, syncedAt(sort: Desc)])
 }
@@ -367,7 +364,6 @@ model DailyPracticeProblem {
   comments  DailyPracticeComment[]
   solves    PotdSolve[]
 
-  @@index([date])
   @@index([isPublished, date])
   @@index([createdById])
 }
