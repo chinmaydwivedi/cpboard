@@ -43,7 +43,7 @@ export default async function AdminPage() {
     siteVisitCount24h,
     uniqueVisitors30dRows,
     topPagesRaw,
-    recentLoggedInVisits,
+    topVisitors,
     totalProfileViews,
   ] = await Promise.all([
     prisma.university.findMany({
@@ -74,88 +74,55 @@ export default async function AdminPage() {
       orderBy: { _count: { path: "desc" } },
       take: 10,
     }),
-    prisma.pageVisit.findMany({
-      where: {
-        createdAt: { gte: thirtyDaysAgo },
-        viewerUserId: { not: null },
-      },
-      select: { viewerUserId: true, path: true },
-      orderBy: { createdAt: "desc" },
-      take: 5000,
-    }),
-    prisma.user.aggregate({
-      _sum: { profileViews: true },
-    }),
-  ]);
-
-  const visitsByUser = new Map<
-    string,
-    { total: number; pageBreakdown: Map<string, number> }
-  >();
-
-  for (const visit of recentLoggedInVisits) {
-    if (!visit.viewerUserId) continue;
-    const existing = visitsByUser.get(visit.viewerUserId) ?? {
-      total: 0,
-      pageBreakdown: new Map<string, number>(),
-    };
-    existing.total += 1;
-    existing.pageBreakdown.set(
-      visit.path,
-      (existing.pageBreakdown.get(visit.path) ?? 0) + 1
-    );
-    visitsByUser.set(visit.viewerUserId, existing);
-  }
-
-  const topVisitorIds = [...visitsByUser.entries()]
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, 10)
-    .map(([userId]) => userId);
-
-  const visitorUsers = topVisitorIds.length
-    ? await prisma.user.findMany({
-        where: { id: { in: topVisitorIds } },
-        select: { id: true, username: true, name: true },
-      })
-    : [];
-  const visitorUsersById = new Map(visitorUsers.map((u) => [u.id, u]));
-
-  const topVisitors = topVisitorIds
-    .map((userId) => {
-      const counts = visitsByUser.get(userId);
-      const user = visitorUsersById.get(userId);
-      if (!counts || !user) return null;
-
-      let mostVisitedPath = "/";
-      let mostVisitedCount = 0;
-      for (const [path, count] of counts.pageBreakdown) {
-        if (count > mostVisitedCount) {
-          mostVisitedPath = path;
-          mostVisitedCount = count;
-        }
-      }
-
-      return {
-        userId,
-        username: user.username,
-        name: user.name,
-        visits: counts.total,
-        mostVisitedPath,
-        mostVisitedCount,
-      };
-    })
-    .filter(
-      (
-        visitor
-      ): visitor is {
+    // Aggregate in SQL so the ranking covers every visit in the window.
+    prisma.$queryRaw<
+      Array<{
         userId: string;
         username: string;
         name: string | null;
         visits: number;
         mostVisitedPath: string;
         mostVisitedCount: number;
-      } => visitor !== null
-    );
+      }>
+    >`
+      WITH top_visitors AS (
+        SELECT "viewerUserId", COUNT(*)::integer AS "visits"
+        FROM "PageVisit"
+        WHERE "createdAt" >= ${thirtyDaysAgo}
+          AND "viewerUserId" IS NOT NULL
+        GROUP BY "viewerUserId"
+        ORDER BY "visits" DESC, "viewerUserId"
+        LIMIT 10
+      ),
+      top_paths AS (
+        SELECT DISTINCT ON (visits."viewerUserId")
+          visits."viewerUserId",
+          visits."path",
+          COUNT(*)::integer AS "pathVisits"
+        FROM "PageVisit" AS visits
+        INNER JOIN top_visitors
+          ON top_visitors."viewerUserId" = visits."viewerUserId"
+        WHERE visits."createdAt" >= ${thirtyDaysAgo}
+        GROUP BY visits."viewerUserId", visits."path"
+        ORDER BY visits."viewerUserId", "pathVisits" DESC, visits."path"
+      )
+      SELECT
+        users."id" AS "userId",
+        users."username",
+        users."name",
+        top_visitors."visits",
+        top_paths."path" AS "mostVisitedPath",
+        top_paths."pathVisits" AS "mostVisitedCount"
+      FROM top_visitors
+      INNER JOIN "User" AS users ON users."id" = top_visitors."viewerUserId"
+      INNER JOIN top_paths
+        ON top_paths."viewerUserId" = top_visitors."viewerUserId"
+      ORDER BY top_visitors."visits" DESC, top_visitors."viewerUserId"
+    `,
+    prisma.user.aggregate({
+      _sum: { profileViews: true },
+    }),
+  ]);
 
   return (
     <AdminClient

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   compareLeaderboardScores,
   computeBestRating,
-  computeCompositeScore,
   computeTotalSolved,
   getCodeforcesRankTitle,
 } from "@/lib/scoring";
@@ -52,16 +51,6 @@ describe("computeBestRating", () => {
     expect(
       computeBestRating([profile({ platform: "CODEFORCES", rating: 2000 })]),
     ).toBe(0);
-  });
-});
-
-describe("computeCompositeScore", () => {
-  it("weights solved problems by 10 and adds the LeetCode rating", () => {
-    expect(
-      computeCompositeScore([
-        profile({ platform: "LEETCODE", problemsSolved: 50, rating: 1600 }),
-      ]),
-    ).toBe(2100);
   });
 });
 

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { auth } from "@/lib/auth";
 import { hasPotdAdminAccess } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 export async function POST(
   _req: NextRequest,
@@ -63,6 +64,9 @@ export async function POST(
   revalidatePath("/daily-practice");
   revalidatePath("/leaderboard");
   revalidatePath("/admin/daily-practice");
+  // Every university board shows POTD streaks, so clear the shared tag rather
+  // than one /leaderboard/[slug] path.
+  revalidateTag(CACHE_TAGS.leaderboard, { expire: 0 });
 
   return NextResponse.json({
     ok: true,

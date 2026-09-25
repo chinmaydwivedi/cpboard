@@ -13,16 +13,35 @@ export const maxDuration = 60;
 const HOUSEKEEPING_LEASE_MS = 20 * 60 * 60 * 1_000;
 const HOUSEKEEPING_RUN_LEASE_MS = 10 * 60 * 1_000;
 
+const PUSH_SCAN_BATCH_SIZE = 1_000;
+
+// Pages by id so every subscription is checked, not just an arbitrary first batch.
 async function removeUntrustedPushSubscriptions() {
-  const subscriptions = await prisma.pushSubscription.findMany({
-    select: { id: true, endpoint: true },
-    take: 10_000,
-  });
-  const ids = subscriptions
-    .filter((subscription) => !isTrustedPushEndpoint(subscription.endpoint))
-    .map((subscription) => subscription.id);
-  if (ids.length === 0) return { count: 0 };
-  return prisma.pushSubscription.deleteMany({ where: { id: { in: ids } } });
+  let count = 0;
+  let cursor: string | undefined;
+  for (;;) {
+    // `gt` rather than a Prisma cursor: the cursor row may be deleted below.
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: cursor ? { id: { gt: cursor } } : undefined,
+      select: { id: true, endpoint: true },
+      orderBy: { id: "asc" },
+      take: PUSH_SCAN_BATCH_SIZE,
+    });
+    if (subscriptions.length === 0) break;
+    cursor = subscriptions[subscriptions.length - 1].id;
+
+    const ids = subscriptions
+      .filter((subscription) => !isTrustedPushEndpoint(subscription.endpoint))
+      .map((subscription) => subscription.id);
+    if (ids.length > 0) {
+      const result = await prisma.pushSubscription.deleteMany({
+        where: { id: { in: ids } },
+      });
+      count += result.count;
+    }
+    if (subscriptions.length < PUSH_SCAN_BATCH_SIZE) break;
+  }
+  return { count };
 }
 
 async function runtimeDatabaseRoleIsRestricted() {

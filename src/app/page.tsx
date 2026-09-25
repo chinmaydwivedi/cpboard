@@ -9,26 +9,24 @@ export const dynamic = "force-dynamic";
 
 const getStats = unstable_cache(
   async () => {
-    const [userCount, universityCount, profileCount, totalSolved] =
-      await withReadRetry(() =>
+    const [userCount, universityCount, profileStats] = await withReadRetry(
+      () =>
         Promise.all([
           prisma.user.count({ where: { onboardingComplete: true } }),
           prisma.university.count(),
-          prisma.platformProfile.count({
-            where: { verified: true, user: { onboardingComplete: true } },
-          }),
           prisma.platformProfile.aggregate({
             where: { verified: true, user: { onboardingComplete: true } },
+            _count: { _all: true },
             _sum: { problemsSolved: true },
           }),
         ]),
-      );
+    );
 
     return {
       users: userCount,
       universities: universityCount,
-      profiles: profileCount,
-      totalSolved: totalSolved._sum.problemsSolved || 0,
+      profiles: profileStats._count._all,
+      totalSolved: profileStats._sum.problemsSolved || 0,
     };
   },
   ["landing-stats-v2"],
