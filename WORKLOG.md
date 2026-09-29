@@ -6,6 +6,47 @@ what was asked, what is done, what is left, and why things were decided.
 
 ---
 
+## Current effort: "CPB" monogram logo (logo v2)
+
+- **Branch:** `feature/cpb-monogram-logo` (cut from `main` at `4ecdc7b`)
+- **Started:** 2026-09-29
+- **Owner request:** use a "CPB" monogram (round emblem, bold letters) as the
+  logo, with a transparent background instead of white.
+- **Why it is an original design:** the reference image the owner sent was a
+  133px stock preview with an "alamy" watermark in the P, so it could not be
+  used or traced. The owner chose to have an original monogram designed in the
+  same spirit instead.
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Design original CPB circle monogram | Done |
+| 2 | Single source + in-app component + icon generator | Done |
+| 3 | Regenerate favicon, app and PWA icons | Done |
+| 4 | Typecheck, lint, tests, build, visual check | Done — all pass; checked header, footer, sign-in, mobile header, and every icon file (incl. maskable crop and 16px favicon) |
+| 5 | Commit, push, PR | Done — pushed `feature/cpb-monogram-logo` and opened a PR against `main` |
+| 6 | Merge to `main` (deploys to production) | Owner merges; check `git log main` for the logo commit |
+
+### Logo v2 decisions
+
+- **Design:** letters C, P, B fill a circle (r = 224 on a 512 grid), split by
+  two vertical gaps. C's mouth and B's two bowls follow inner circles so the
+  strokes stay even; B has a small waist notch; P runs full height, is open
+  below its bowl, and is the brand red (`#ed3151`). C and B use the foreground
+  colour. Explored and rejected: a hexagon (read as "CPH") and an italic cut
+  (messy at small sizes).
+- **Single source:** `src/lib/brand-mark.ts` holds the three path strings
+  (exact arcs, even-odd counters, so holes are transparent).
+  `src/components/logo.tsx` renders them inline with `var(--foreground)` and
+  `var(--primary)`, so the mark follows the theme with no background.
+- **Icons:** `npm run brand:icons` (`scripts/generate-brand-icons.ts`, uses
+  the `sharp` that ships with Next) rewrites `src/app/icon.svg` and
+  `public/cpboard-app-icon.svg` (transparent; ink switches with the browser's
+  light/dark scheme so the tab icon is visible either way), plus
+  `src/app/favicon.ico`, `src/app/apple-icon.png` and the four
+  `public/icon-*.png` files on the dark tile (opaque backgrounds are required
+  for app launchers; maskable icons keep the mark inside the safe zone).
+  **Never hand-edit those files; change `brand-mark.ts` and re-run the script.**
+
 ## Shipped: ICPC page, dashboard/profile merge, new logo, UI polish
 
 - **Status:** merged and live. PR [#54](https://github.com/chinmaydwivedi/cpboard/pull/54)
@@ -41,12 +82,8 @@ what was asked, what is done, what is left, and why things were decided.
 
 ### Decisions (and why)
 
-- **Logo:** code brackets `< >` around a 2-1-3 podium with a red "champion" dot.
-  Says both "code" and "leaderboard". Source SVG: `src/app/icon.svg` (also copied
-  to `public/cpboard-app-icon.svg`). In-app version is `src/components/logo.tsx`
-  (uses theme CSS variables). The 16px favicon layer uses a simpler podium-only
-  version because the brackets blur at that size. PNGs were rendered with
-  `rsvg-convert`; maskable icons keep the mark inside the 72% safe zone.
+- **Logo (replaced 2026-09-29, see "Logo v2" below):** first shipped as code
+  brackets `< >` around a podium.
 - **Favicons via file conventions:** `src/app/favicon.ico` (16/32/48),
   `src/app/icon.svg`, `src/app/apple-icon.png`; removed `metadata.icons` from
   the root layout so the files drive the `<link>` tags.

@@ -52,7 +52,7 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         iconSrc: "/icon-192x192.png",
         title: "A New CPBoard Logo",
         description:
-          "A podium framed by code brackets, now in the header, footer, sign-in page, browser tab and installed app icon.",
+          "A bold CPB monogram, now in the header, footer, sign-in page, browser tab and installed app icon.",
       },
       {
         id: "consistent-typography",

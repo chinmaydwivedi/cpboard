@@ -1,9 +1,10 @@
+import { BRAND_MARK_PATHS } from "@/lib/brand-mark";
 import { cn } from "@/lib/utils";
 
 /**
- * CPBoard mark: code brackets around a podium, with the champion on top.
- * Flat fills use theme tokens so the mark follows the site palette; the
- * standalone app icons live in `src/app/icon.svg` and `public/icon-*.png`.
+ * CPBoard mark: the "CPB" circle monogram (see `src/lib/brand-mark.ts`).
+ * C and B use the foreground colour and P the primary red, so the mark follows
+ * the theme; the background stays transparent.
  */
 export function LogoMark({ className }: { className?: string }) {
   return (
@@ -12,30 +13,11 @@ export function LogoMark({ className }: { className?: string }) {
       aria-hidden="true"
       className={cn("size-7 shrink-0", className)}
     >
-      <rect width="512" height="512" rx="116" fill="var(--card)" />
-      <rect
-        x="4"
-        y="4"
-        width="504"
-        height="504"
-        rx="112"
-        fill="none"
-        stroke="var(--border)"
-        strokeWidth="8"
-      />
-      <path
-        d="M130 200 76 256l54 56M382 200l54 56-54 56"
-        fill="none"
-        stroke="var(--foreground)"
-        strokeOpacity="0.5"
-        strokeWidth="30"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <rect x="152" y="266" width="60" height="104" rx="12" fill="var(--foreground)" fillOpacity="0.92" />
-      <rect x="226" y="200" width="60" height="170" rx="12" fill="var(--primary)" />
-      <rect x="300" y="302" width="60" height="68" rx="12" fill="var(--foreground)" fillOpacity="0.5" />
-      <circle cx="256" cy="152" r="25" fill="var(--primary)" />
+      <g fillRule="evenodd">
+        <path fill="var(--foreground)" d={BRAND_MARK_PATHS.c} />
+        <path fill="var(--primary)" d={BRAND_MARK_PATHS.p} />
+        <path fill="var(--foreground)" d={BRAND_MARK_PATHS.b} />
+      </g>
     </svg>
   );
 }
