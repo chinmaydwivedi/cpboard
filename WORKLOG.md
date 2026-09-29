@@ -6,9 +6,13 @@ what was asked, what is done, what is left, and why things were decided.
 
 ---
 
-## Current effort: ICPC page, dashboard/profile merge, new logo, UI polish
+## Shipped: ICPC page, dashboard/profile merge, new logo, UI polish
 
-- **Branch:** `feature/icpc-page-dashboard-merge` (cut from `main` at `728f99b`)
+- **Status:** merged and live. PR [#54](https://github.com/chinmaydwivedi/cpboard/pull/54)
+  was squash-merged into `main` as `a3fe720` on 2026-09-29; the Vercel
+  production deploy succeeded at 21:50 IST and the security gate on `main`
+  passed. Nothing is in progress on this effort.
+- **Branch:** `feature/icpc-page-dashboard-merge` (cut from `main` at `728f99b`; merged)
 - **Started:** 2026-09-29
 - **Owner request (verbatim intent):**
   1. Pull latest changes first.
@@ -31,8 +35,9 @@ what was asked, what is done, what is left, and why things were decided.
 | 5 | Font + consistency polish (shared page header, card borders, footer, rank colours) | Done |
 | 6 | Changelog entry in `src/lib/changelog.ts` for the release | Done |
 | 7 | Typecheck, lint, tests, build, browser tests | Done — all pass (43 unit tests + DB-backed browser checks) |
-| 8 | Commit + push branch | Done (2026-09-29) — **not merged; not live until merged to `main`** |
-| 9 | Open PR / merge to `main` | Not done — waiting for the owner to ask |
+| 8 | Commit + push branch | Done |
+| 9 | PR #54, merged to `main` | Done — all CI checks passed; squash-merged as `a3fe720` |
+| 10 | Production deploy | Done — live on cpboard-three.vercel.app (`/icpc` and the new changelog entry verified) |
 
 ### Decisions (and why)
 
@@ -104,10 +109,10 @@ what was asked, what is done, what is left, and why things were decided.
 
 ### Left to do / follow-ups
 
-- **Merge to go live:** the branch is pushed but not merged. Merging to
-  `main` deploys to production (there are no preview deploys, see above).
-  After it's live, sign in once and check the dashboard, *Share profile*, and
-  that `/profile` lands on `/dashboard`.
+- **Owner post-deploy check:** sign in on production once and check the
+  dashboard, *Share profile*, and that `/profile` lands on `/dashboard`.
+  Browsers keep their own favicon cache, so the new tab icon can take a while
+  to appear even after a hard refresh.
 - **Not testable locally:** the contest-reminder dropdown is disabled without
   VAPID push keys, so changing it was not exercised (its label was checked).
 - **Pre-existing warning (not from this work):** Recharts logs "width(-1) and
