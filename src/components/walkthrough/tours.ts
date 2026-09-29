@@ -6,6 +6,7 @@ export type TourId =
   | "universityBoard"
   | "cpRankings"
   | "contests"
+  | "icpc"
   | "dashboard"
   | "publicProfile"
   | "changelog"
@@ -18,7 +19,7 @@ const navStep: DriveStep = {
   popover: {
     title: "Site navigation",
     description:
-      "Open Leaderboard, CP Rankings, Contests, and Dashboard (when signed in). On the right, use Sync All, page tours, and What’s New/Changelog.",
+      "Open Leaderboard, CP Rankings, Contests, the ICPC guide, and your Dashboard. On the right, use Sync All, page tours, and What’s New/Changelog.",
     side: "bottom",
     align: "center",
   },
@@ -190,13 +191,67 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       },
     },
   ],
+  icpc: [
+    navStep,
+    {
+      element: SEL("icpc-header"),
+      popover: {
+        title: "ICPC guide",
+        description:
+          "Everything an Indian college team needs for ICPC: how it works, how to qualify, and how to prepare.",
+        side: "bottom",
+      },
+    },
+    {
+      element: SEL("icpc-next"),
+      popover: {
+        title: "Up next",
+        description: "The next stage of the current season, with a quick way to add it to your calendar.",
+        side: "bottom",
+      },
+    },
+    {
+      element: SEL("icpc-road"),
+      popover: {
+        title: "Road to the World Finals",
+        description:
+          "Every stage from team registration to the World Finals. Finished stages are ticked off automatically.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("icpc-regionals"),
+      popover: {
+        title: "Indian regionals",
+        description: "Dates, hosts, onsite seats, fees and selection rules for each Indian regional site.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("icpc-format"),
+      popover: {
+        title: "Contest format",
+        description: "How scoring, penalty time, the frozen scoreboard and the team notebook work.",
+        side: "top",
+      },
+    },
+    {
+      element: SEL("icpc-prepare"),
+      popover: {
+        title: "How to prepare",
+        description: "A year-by-year plan, plus the CPBoard pages that help you track it.",
+        side: "top",
+      },
+    },
+  ],
   dashboard: [
     navStep,
     {
       element: SEL("dash-profile"),
       popover: {
         title: "Your profile",
-        description: "Avatar, display name, username, and university badge. Edit inline or change your photo.",
+        description:
+          "Your avatar, name, username, university and join date. Edit inline, change your photo, or copy your public profile link to share.",
         side: "bottom",
       },
     },
@@ -204,7 +259,8 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       element: SEL("dash-stats"),
       popover: {
         title: "Totals",
-        description: "Problems solved across platforms, your best rating, and how many platforms you have linked.",
+        description:
+          "Problems solved across platforms, your LeetCode rating, how many people viewed your profile, and which platforms are linked.",
         side: "bottom",
       },
     },
@@ -253,6 +309,14 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       },
     },
     {
+      element: SEL("dash-support"),
+      popover: {
+        title: "Support",
+        description: "Need account help or a profile review? Email support from here.",
+        side: "top",
+      },
+    },
+    {
       element: SEL("dash-danger"),
       popover: {
         title: "Danger zone",
@@ -284,23 +348,15 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       popover: {
         title: "Linked platforms",
         description:
-          "Each card shows solved counts and ratings. On your own profile, you can remove a platform with the per-card Remove action.",
+          "Each card shows solved counts, ratings and contests, with a link to the profile on that platform.",
         side: "top",
       },
     },
     {
       element: SEL("profile-support"),
       popover: {
-        title: "Support",
-        description: "Need account help or a profile review? Use this support contact.",
-        side: "top",
-      },
-    },
-    {
-      element: SEL("profile-danger"),
-      popover: {
-        title: "Account deletion",
-        description: "If this is your own profile, you can permanently delete your account here.",
+        title: "Report a problem",
+        description: "Something looks wrong on this profile? Request a review from support.",
         side: "top",
       },
     },
@@ -374,6 +430,7 @@ export function tourIdForPathname(pathname: string): TourId | null {
   if (/^\/leaderboard\/[^/]+$/.test(pathname)) return "universityBoard";
   if (pathname === "/cp-rankings") return "cpRankings";
   if (pathname === "/contests") return "contests";
+  if (pathname === "/icpc") return "icpc";
   if (pathname === "/dashboard") return "dashboard";
   if (pathname === "/admin/daily-practice") return "adminDailyPractice";
   if (/^\/u\/[^/]+$/.test(pathname)) return "publicProfile";

@@ -18,6 +18,55 @@ export type ChangelogRelease = {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    id: "2026-09-29-icpc-guide-dashboard-merge",
+    publishedOn: "2026-09-29",
+    headline: "ICPC Guide, One Dashboard, and a New Look",
+    summary:
+      "A complete ICPC guide for Indian college teams, your profile and dashboard merged into a single page, a new CPBoard logo, and cleaner, more consistent typography across the site.",
+    highlights: [
+      {
+        id: "icpc-guide",
+        label: "NEW",
+        pageHref: "/icpc",
+        pageLabel: "ICPC",
+        iconSrc: "/icon-192x192.png",
+        title: "ICPC Guide for Indian Teams",
+        description:
+          "Eligibility, the common online preliminary, all four Indian regionals with dates, seats and fees, the road to the World Finals, contest rules, and a year-by-year preparation plan.",
+      },
+      {
+        id: "dashboard-profile-merge",
+        label: "IMPROVED",
+        pageHref: "/dashboard",
+        pageLabel: "Dashboard",
+        iconSrc: "/icon-192x192.png",
+        title: "Profile and Dashboard, Together",
+        description:
+          "Your dashboard now shows everything your public profile did, including profile visits, join date, contests and Codeforces rank titles, plus a Share profile button. Old profile links open the dashboard.",
+      },
+      {
+        id: "new-logo",
+        label: "NEW",
+        pageHref: "/",
+        pageLabel: "Brand",
+        iconSrc: "/icon-192x192.png",
+        title: "A New CPBoard Logo",
+        description:
+          "A podium framed by code brackets, now in the header, footer, sign-in page, browser tab and installed app icon.",
+      },
+      {
+        id: "consistent-typography",
+        label: "IMPROVED",
+        pageHref: "/leaderboard",
+        pageLabel: "Design",
+        iconSrc: "/icon-192x192.png",
+        title: "Consistent Page Headers and Type",
+        description:
+          "Every page now opens with the same serif title style as the home page, body text uses the crisper Geist typeface, and cards share one border style.",
+      },
+    ],
+  },
+  {
     id: "2026-07-19-data-resilience-repair",
     publishedOn: "2026-07-19",
     headline: "Stable Data Through Provider Hiccups",

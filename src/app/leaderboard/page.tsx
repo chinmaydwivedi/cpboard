@@ -10,6 +10,7 @@ import { LeaderboardClient } from "./leaderboard-client";
 import type { LeaderboardEntry, WeeklyLeader } from "@/types";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { withReadRetry } from "@/lib/read-retry";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = {
   title: "Leaderboard",
@@ -162,12 +163,12 @@ export default async function LeaderboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
-      <div className="mb-8" data-tour="lb-header">
-        <h1 className="text-2xl font-bold tracking-tight">Leaderboard</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Global rankings across all universities
-        </p>
-      </div>
+      <PageHeader
+        tour="lb-header"
+        eyebrow="Global standings"
+        title="Leaderboard"
+        description="Rankings by problems solved across Codeforces, LeetCode, AtCoder and CodeChef, for every university."
+      />
 
       <LeaderboardClient
         entries={leaderboard.entries}

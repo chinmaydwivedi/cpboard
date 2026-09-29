@@ -148,7 +148,7 @@ export function Heatmap({ data, todayIso }: { data: HeatmapData; todayIso?: stri
   const canGoPrev = year > minYear;
 
   return (
-    <div className="rounded-lg border border-border bg-card/50 p-4">
+    <div className="rounded-lg border border-border/60 bg-card/50 p-4">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1">

@@ -5,6 +5,7 @@ import { CPRankingsClient } from "./cp-rankings-client";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { withReadRetry } from "@/lib/read-retry";
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = {
   title: "CP Rankings",
@@ -196,12 +197,12 @@ export default async function CPRankingsPage({
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
-      <div className="mb-8" data-tour="cp-header">
-        <h1 className="text-2xl font-bold tracking-tight">CP Rankings</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Codeforces ratings across all universities
-        </p>
-      </div>
+      <PageHeader
+        tour="cp-header"
+        eyebrow="Rated on Codeforces"
+        title="CP Rankings"
+        description="Codeforces ratings, rank titles and rating distribution across all universities."
+      />
 
       <CPRankingsClient {...data} />
     </div>

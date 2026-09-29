@@ -19,15 +19,18 @@ import {
   NotificationSettings,
   type NotificationPreferences,
 } from "@/components/notification-settings";
+import { PlatformBadge } from "@/components/platform-badge";
 import { PLATFORM_LABELS } from "@/types";
 import type { HeatmapData } from "@/types";
 import type { TopicRadarPoint } from "@/lib/topic-radar";
 import type { Platform } from "@prisma/client";
-import { extractHandle } from "@/lib/parse-handle";
+import { extractHandle, getProfileUrl } from "@/lib/parse-handle";
+import { getCodeforcesRankColor, getCodeforcesRankTitle } from "@/lib/scoring";
+import { PLATFORM_ACCENT_CLASS, PLATFORM_CARD_CLASS } from "@/lib/platform-styles";
 import { toast } from "sonner";
 import {
   RefreshCw, CheckCircle2, LogOut, Trash2, AlertTriangle,
-  Pencil, Camera, X, Check, ShieldCheck,
+  Pencil, Camera, X, Check, ShieldCheck, ExternalLink, Mail, Link2,
 } from "lucide-react";
 
 type ProfileData = {
@@ -44,20 +47,6 @@ type ProfileData = {
 };
 
 const ALL_PLATFORMS: Platform[] = ["CODEFORCES", "LEETCODE", "ATCODER", "CODECHEF"];
-
-const platformColor: Record<Platform, string> = {
-  CODEFORCES: "border-blue-500/20 bg-blue-500/5",
-  LEETCODE: "border-amber-500/20 bg-amber-500/5",
-  ATCODER: "border-cyan-500/20 bg-cyan-500/5",
-  CODECHEF: "border-orange-500/20 bg-orange-500/5",
-};
-
-const platformAccent: Record<Platform, string> = {
-  CODEFORCES: "text-blue-600 dark:text-blue-400",
-  LEETCODE: "text-amber-600 dark:text-amber-400",
-  ATCODER: "text-cyan-600 dark:text-cyan-400",
-  CODECHEF: "text-orange-600 dark:text-orange-400",
-};
 
 function resizeImage(file: File, maxDim: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -83,6 +72,14 @@ function resizeImage(file: File, maxDim: number, quality: number): Promise<strin
   });
 }
 
+function formatShortDate(iso: string, withYear = false) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    ...(withYear ? { year: "numeric" } : { day: "numeric" }),
+    timeZone: "UTC",
+  });
+}
+
 function formatRetryDelay(totalSeconds: number) {
   const seconds = Math.max(1, Math.ceil(totalSeconds));
   const hours = Math.floor(seconds / 3_600);
@@ -103,6 +100,7 @@ export function DashboardClient({
   vapidPublicKey,
   notificationPreferences,
   ownershipVerificationRequired,
+  supportEmail,
 }: {
   user: {
     id: string;
@@ -111,6 +109,8 @@ export function DashboardClient({
     email: string;
     avatarUrl: string | null;
     university: { name: string; shortName: string };
+    createdAt: string;
+    profileViews: number;
   };
   profiles: ProfileData[];
   heatmapData: HeatmapData;
@@ -120,6 +120,7 @@ export function DashboardClient({
   vapidPublicKey: string | null;
   notificationPreferences: NotificationPreferences;
   ownershipVerificationRequired: boolean;
+  supportEmail: string;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -211,6 +212,16 @@ export function DashboardClient({
   const codeforcesRating =
     verifiedProfiles.find((profile) => profile.platform === "CODEFORCES")
       ?.rating || 0;
+
+  const handleCopyProfileLink = async () => {
+    const url = `${window.location.origin}/u/${currentUsername}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Profile link copied", { description: url });
+    } catch {
+      toast.error("Couldn't copy the link", { description: url });
+    }
+  };
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -480,13 +491,13 @@ export function DashboardClient({
       >
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <div className="relative group">
-            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary">
               {avatarUrl ? (
                 <NextImage
                   src={avatarUrl}
                   alt={`${currentName || currentUsername}'s avatar`}
                   fill
-                  sizes="56px"
+                  sizes="64px"
                   unoptimized
                   className="object-cover"
                 />
@@ -509,7 +520,7 @@ export function DashboardClient({
             {!editingProfile ? (
               <>
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <h1 className="min-w-0 break-words text-xl font-bold tracking-tight">
+                  <h1 className="min-w-0 wrap-break-word font-heading text-3xl leading-tight tracking-tight italic">
                     {currentName || currentUsername}
                   </h1>
                   <button
@@ -526,8 +537,10 @@ export function DashboardClient({
                     <Pencil className="size-3.5" aria-hidden="true" />
                   </button>
                 </div>
-                <p className="flex flex-wrap items-center gap-x-1 text-sm text-muted-foreground">
-                  @{currentUsername} · <Badge variant="outline" className="font-mono text-[10px]">{user.university.shortName}</Badge>
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                  <span>@{currentUsername}</span>
+                  <Badge variant="outline" className="font-mono text-[10px]">{user.university.shortName}</Badge>
+                  <span className="text-[11px]">Joined {formatShortDate(user.createdAt, true)}</span>
                 </p>
                 {avatarUrl && (
                   <button onClick={handleRemoveAvatar} disabled={uploadingAvatar} className="text-[11px] text-muted-foreground hover:text-destructive transition-colors mt-0.5">
@@ -565,27 +578,57 @@ export function DashboardClient({
             )}
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => signOut({ callbackUrl: "/" })}
-          className="w-full gap-1.5 text-[13px] sm:w-auto"
-        >
-          <LogOut className="h-3.5 w-3.5" /> Sign Out
-        </Button>
+        <div className="flex w-full gap-2 sm:w-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handleCopyProfileLink()}
+            className="flex-1 gap-1.5 text-[13px] sm:flex-none"
+            title="Copy the link others use to view your public profile"
+          >
+            <Link2 className="h-3.5 w-3.5" /> Share profile
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className="flex-1 gap-1.5 text-[13px] sm:flex-none"
+          >
+            <LogOut className="h-3.5 w-3.5" /> Sign Out
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3 mb-6" data-tour="dash-stats">
-        {[
-          { label: "Problems Solved", value: totalSolved.toString() },
-          { label: "LC Rating", value: leetcodeRating > 0 ? leetcodeRating.toString() : "—" },
-          { label: "Platforms", value: `${verifiedProfiles.length}/4` },
-        ].map((stat) => (
-          <div key={stat.label} className="rounded-lg border border-border/40 p-4">
-            <p className="text-[11px] text-muted-foreground font-medium">{stat.label}</p>
-            <p className="text-2xl font-bold font-mono mt-1">{stat.value}</p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-6" data-tour="dash-stats">
+        <div className="rounded-lg border border-border/60 p-4">
+          <p className="text-[11px] text-muted-foreground font-medium">Problems Solved</p>
+          <p className="text-2xl font-bold font-mono text-primary mt-1">{totalSolved}</p>
+        </div>
+        <div className="rounded-lg border border-border/60 p-4">
+          <p className="text-[11px] text-muted-foreground font-medium">LC Rating</p>
+          <p className="text-2xl font-bold font-mono mt-1">
+            {leetcodeRating > 0 ? (
+              <span style={{ color: getCodeforcesRankColor(leetcodeRating) }}>{leetcodeRating}</span>
+            ) : "—"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border/60 p-4">
+          <p className="text-[11px] text-muted-foreground font-medium">Profile Visits</p>
+          <p className="text-2xl font-bold font-mono mt-1">{user.profileViews}</p>
+        </div>
+        <div className="rounded-lg border border-border/60 p-4">
+          <p className="text-[11px] text-muted-foreground font-medium">
+            Platforms <span className="font-mono">{verifiedProfiles.length}/4</span>
+          </p>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {verifiedProfiles.map((profile) => (
+              <PlatformBadge key={profile.platform} platform={profile.platform} />
+            ))}
+            {verifiedProfiles.length === 0 && (
+              <span className="text-sm text-muted-foreground">None linked</span>
+            )}
           </div>
-        ))}
+        </div>
       </div>
 
       <div className="mb-6" data-tour="dash-heatmap">
@@ -600,7 +643,12 @@ export function DashboardClient({
         {recommendationsSection}
       </div>
 
-      <p className="text-[11px] text-muted-foreground font-medium mb-3">Platforms</p>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-[11px] text-muted-foreground font-medium">Platforms</p>
+        <p className="text-[11px] text-muted-foreground">
+          Link a handle, then sync to update your stats
+        </p>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 mb-8" data-tour="dash-platforms">
         {ALL_PLATFORMS.map((platform) => {
           const profile = currentProfiles.find((p) => p.platform === platform);
@@ -633,10 +681,12 @@ export function DashboardClient({
                 ? "Verify new handle"
                 : "Verify handle"
               : "Sync stats";
+          const showCodeforcesRank =
+            platform === "CODEFORCES" && Boolean(profile && profile.rating > 0);
           return (
-            <div key={platform} className={`rounded-lg border p-4 ${platformColor[platform]}`}>
+            <div key={platform} className={`flex flex-col rounded-lg border p-4 ${PLATFORM_CARD_CLASS[platform]}`}>
               <div className="flex items-center justify-between gap-3 mb-3">
-                <span className={`text-sm font-semibold ${platformAccent[platform]}`}>
+                <span className={`text-sm font-semibold ${PLATFORM_ACCENT_CLASS[platform]}`}>
                   {PLATFORM_LABELS[platform]}
                 </span>
                 <div className="flex items-center gap-1.5">
@@ -678,7 +728,72 @@ export function DashboardClient({
                 </div>
               </div>
 
-              <div className="flex gap-2 mb-3">
+              {profile ? (
+                <>
+                  <div className="grid grid-cols-4 gap-3">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Solved</p>
+                      <p className="text-sm font-bold font-mono">{profile.problemsSolved}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Rating</p>
+                      <p className="text-sm font-bold font-mono">
+                        {profile.rating > 0 ? (
+                          <span
+                            style={{
+                              color:
+                                platform === "CODEFORCES"
+                                  ? getCodeforcesRankColor(profile.rating)
+                                  : undefined,
+                            }}
+                          >
+                            {profile.rating}
+                          </span>
+                        ) : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Max</p>
+                      <p className="text-sm font-bold font-mono">{profile.maxRating || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Contests</p>
+                      <p className="text-sm font-bold font-mono">{profile.contestsCount}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-border/30 pt-3 text-xs">
+                    {showCodeforcesRank ? (
+                      <span
+                        className="font-medium"
+                        style={{ color: getCodeforcesRankColor(profile.rating) }}
+                      >
+                        {getCodeforcesRankTitle(profile.rating)}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">
+                        {profile.lastSynced
+                          ? `Synced ${formatShortDate(profile.lastSynced)}`
+                          : "Waiting for first sync"}
+                      </span>
+                    )}
+                    <a
+                      href={getProfileUrl(platform, profile.handle)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex min-w-0 items-center gap-1 text-muted-foreground transition-colors hover:text-primary"
+                    >
+                      <span className="truncate">@{profile.handle}</span>
+                      <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Add your {PLATFORM_LABELS[platform]} handle to count it on the leaderboard.
+                </p>
+              )}
+
+              <div className="mt-auto flex gap-2 pt-3">
                 <Input
                   id={`platform-handle-${platform.toLowerCase()}`}
                   aria-label={`${PLATFORM_LABELS[platform]} handle or profile URL`}
@@ -725,23 +840,6 @@ export function DashboardClient({
                   </span>
                 </Button>
               </div>
-
-              {profile && (
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground">Solved</p>
-                    <p className="text-sm font-bold font-mono">{profile.problemsSolved}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground">Rating</p>
-                    <p className="text-sm font-bold font-mono">{profile.rating || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground">Max</p>
-                    <p className="text-sm font-bold font-mono">{profile.maxRating || "—"}</p>
-                  </div>
-                </div>
-              )}
             </div>
           );
         })}
@@ -766,40 +864,58 @@ export function DashboardClient({
         initialPreferences={notificationPreferences}
       />
 
-      <div className="rounded-lg border border-destructive/20 p-5" data-tour="dash-danger">
-        <div className="flex items-center gap-2 mb-1">
-          <AlertTriangle className="h-4 w-4 text-destructive" />
-          <p className="text-sm font-medium text-destructive">Danger Zone</p>
-        </div>
-        <p className="text-xs text-muted-foreground mb-4">
-          Permanently delete your account and all associated data. This action cannot be undone.
-        </p>
-        {!showDeleteConfirm ? (
-          <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)}>
-            <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Account
-          </Button>
-        ) : (
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            <p className="text-xs text-destructive font-medium">Are you sure?</p>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={handleDeleteAccount}
-              disabled={deleting}
-              className="w-full sm:w-auto"
-            >
-              {deleting ? "Deleting..." : "Yes, delete my account"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowDeleteConfirm(false)}
-              className="w-full sm:w-auto"
-            >
-              Cancel
-            </Button>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-border/60 p-5" data-tour="dash-support">
+          <div className="flex items-center gap-2 mb-1">
+            <Mail className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium">Need support or a profile review?</p>
           </div>
-        )}
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            For account help, feedback, or profile review requests, email support and include your username.
+          </p>
+          <a
+            href={`mailto:${supportEmail}?subject=CPBoard%20Support%20Request%20(%40${currentUsername})`}
+            className="inline-flex mt-3 items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+          >
+            {supportEmail} <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+
+        <div className="rounded-lg border border-destructive/20 p-5" data-tour="dash-danger">
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <p className="text-sm font-medium text-destructive">Danger Zone</p>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Permanently delete your account and all associated data. This action cannot be undone.
+          </p>
+          {!showDeleteConfirm ? (
+            <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)}>
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Account
+            </Button>
+          ) : (
+            <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <p className="text-xs text-destructive font-medium">Are you sure?</p>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="w-full sm:w-auto"
+              >
+                {deleting ? "Deleting..." : "Yes, delete my account"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

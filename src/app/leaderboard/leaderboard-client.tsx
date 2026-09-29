@@ -33,6 +33,13 @@ export function LeaderboardClient({
   const [search, setSearch] = useState("");
   const [uniFilter, setUniFilter] = useState("all");
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
+  const universityItems = useMemo(
+    () => [
+      { value: "all", label: "All Universities" },
+      ...universities.map((u) => ({ value: u.shortName, label: u.name })),
+    ],
+    [universities],
+  );
 
   const reranked = useMemo(
     () =>
@@ -141,7 +148,11 @@ export function LeaderboardClient({
           onChange={(e) => setSearch(e.target.value)}
           className="sm:max-w-xs bg-background"
         />
-        <Select value={uniFilter} onValueChange={(v) => setUniFilter(v ?? "all")}>
+        <Select
+          value={uniFilter}
+          items={universityItems}
+          onValueChange={(v) => setUniFilter(v ?? "all")}
+        >
           <SelectTrigger className="sm:w-48 bg-background">
             <SelectValue placeholder="All Universities" />
           </SelectTrigger>

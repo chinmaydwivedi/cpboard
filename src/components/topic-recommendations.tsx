@@ -51,7 +51,7 @@ export function TopicRecommendations({
 
   return (
     <section
-      className="overflow-hidden rounded-lg border border-border/80 bg-card/60"
+      className="overflow-hidden rounded-lg border border-border/60 bg-card/50"
       data-tour="dash-recommendations"
     >
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/50 px-4 py-3.5">

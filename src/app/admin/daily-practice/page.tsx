@@ -1,9 +1,14 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { hasPotdAdminAccess, hasAdminAccess } from "@/lib/admin";
 import { dateToDateKey, getIstDateKey } from "@/lib/potd";
 import { DailyPracticeAdminClient } from "./daily-practice-admin-client";
+
+export const metadata: Metadata = {
+  title: "Daily Practice Admin",
+};
 
 export default async function AdminDailyPracticePage() {
   let session;

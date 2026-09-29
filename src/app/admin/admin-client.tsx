@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 import {
   Table,
   TableBody,
@@ -85,10 +86,11 @@ export function AdminClient({
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Admin</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Manage universities and monitor site analytics</p>
-      </div>
+      <PageHeader
+        eyebrow="Restricted"
+        title="Admin"
+        description="Manage universities and monitor site analytics."
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         <div className="rounded-lg border border-border/60 p-4">

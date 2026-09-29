@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Space_Grotesk, JetBrains_Mono, Instrument_Serif } from "next/font/google";
+import Link from "next/link";
+import { Geist, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Navbar } from "@/components/navbar";
@@ -11,9 +12,10 @@ import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { WhatsNewModal } from "@/components/whats-new";
 import { Toaster } from "@/components/ui/sonner";
 import { WalkthroughHost } from "@/components/walkthrough/walkthrough-host";
+import { Logo } from "@/components/logo";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
+const geist = Geist({
   variable: "--font-sans",
   subsets: ["latin"],
 });
@@ -25,7 +27,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-geist-mono",
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
@@ -37,15 +39,20 @@ export const metadata: Metadata = {
   description:
     "Track your competitive programming progress across Codeforces, LeetCode, AtCoder, and CodeChef. Compete on your university's leaderboard.",
   manifest: "/manifest.webmanifest",
-  icons: {
-    apple: "/icon-192x192.png",
-  },
   appleWebApp: {
     capable: true,
     title: "CPBoard",
     statusBarStyle: "black-translucent",
   },
 };
+
+const FOOTER_LINKS = [
+  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/cp-rankings", label: "CP Rankings" },
+  { href: "/contests", label: "Contests" },
+  { href: "/icpc", label: "ICPC" },
+  { href: "/changelog", label: "Changelog" },
+];
 
 async function UserAwareHeader() {
   try {
@@ -98,7 +105,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
+      className={`${geist.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
       data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
@@ -111,10 +118,21 @@ export default function RootLayout({
             <WhatsNewModal releaseId={activeReleaseId} />
             <WalkthroughHost />
             <main className="flex-1">{children}</main>
-            <footer className="border-t border-border/40 py-6 mt-12">
-              <div className="mx-auto max-w-5xl px-5 flex items-center justify-between text-[11px] text-muted-foreground">
-                <span className="font-medium">CPBoard</span>
-                <span>&copy; {new Date().getFullYear()}</span>
+            <footer className="mt-12 border-t border-border/40 py-8">
+              <div className="mx-auto flex max-w-5xl flex-col gap-5 px-5 sm:flex-row sm:items-center sm:justify-between">
+                <Link href="/" aria-label="CPBoard home" className="w-fit opacity-90 transition-opacity hover:opacity-100">
+                  <Logo markClassName="size-6" />
+                </Link>
+                <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2 text-[12px] text-muted-foreground">
+                  {FOOTER_LINKS.map((link) => (
+                    <Link key={link.href} href={link.href} className="transition-colors hover:text-foreground">
+                      {link.label}
+                    </Link>
+                  ))}
+                </nav>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  &copy; {new Date().getFullYear()} CPBoard
+                </span>
               </div>
             </footer>
             <Toaster />

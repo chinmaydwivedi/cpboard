@@ -21,6 +21,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { Platform } from "@prisma/client";
+import { LogoMark } from "@/components/logo";
 
 const platforms: { platform: Platform; label: string; placeholder: string }[] = [
   { platform: "CODEFORCES", label: "Codeforces", placeholder: "https://codeforces.com/profile/tourist" },
@@ -126,6 +127,7 @@ export function OnboardingClient({
   return (
     <div className="mx-auto max-w-md px-5 py-16">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
+        <LogoMark className="mx-auto mb-4 size-10" />
         <h1 className="font-heading text-2xl italic">Welcome to CPBoard</h1>
         <Badge variant="outline" className="font-mono text-[10px] mt-2">{universityName}</Badge>
       </motion.div>

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { DashboardClient } from "./dashboard-client";
 import { fetchCombinedTopicRadar } from "@/lib/topic-radar";
 import { isPushConfigured } from "@/lib/push-notifications";
+import { SUPPORT_EMAIL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -33,6 +34,8 @@ export default async function DashboardPage() {
       username: true,
       email: true,
       avatarUrl: true,
+      createdAt: true,
+      profileViews: true,
       onboardingComplete: true,
       ownershipVerificationRequired: true,
       university: { select: { name: true, shortName: true } },
@@ -115,6 +118,8 @@ export default async function DashboardPage() {
           name: user.university.name,
           shortName: user.university.shortName,
         },
+        createdAt: user.createdAt.toISOString(),
+        profileViews: user.profileViews,
       }}
       profiles={user.platformProfiles.map((p) => ({
         platform: p.platform,
@@ -147,6 +152,7 @@ export default async function DashboardPage() {
           : 30) as 15 | 30 | 60,
       }}
       ownershipVerificationRequired={user.ownershipVerificationRequired}
+      supportEmail={SUPPORT_EMAIL}
     />
   );
 }

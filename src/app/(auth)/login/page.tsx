@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Mail, ArrowRight, AlertCircle } from "lucide-react";
+import { LogoMark } from "@/components/logo";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -62,7 +63,7 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-cover bg-center opacity-20 dark:opacity-20" style={{ backgroundImage: "url(/bg/hero-mono.png)" }} />
         <div className="absolute inset-0 bg-linear-to-b from-background/80 to-background dark:from-background/60 dark:to-background" />
         <div className="relative mx-auto max-w-sm px-5">
-          <div className="rounded-lg border border-border/40 bg-card/90 backdrop-blur-sm p-8 text-center">
+          <div className="rounded-lg border border-border/60 bg-card/90 backdrop-blur-sm p-8 text-center">
             <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
               <Mail className="h-5 w-5 text-primary" />
             </div>
@@ -91,9 +92,10 @@ export default function LoginPage() {
       <div className="absolute inset-0 bg-cover bg-center opacity-20 dark:opacity-20" style={{ backgroundImage: "url(/bg/hero-mono.png)" }} />
       <div className="absolute inset-0 bg-linear-to-b from-background/80 to-background dark:from-background/60 dark:to-background" />
       <div className="relative mx-auto max-w-sm px-5 w-full">
-        <div className="rounded-lg border border-border/40 bg-card/90 backdrop-blur-sm p-8">
+        <div className="rounded-lg border border-border/60 bg-card/90 backdrop-blur-sm p-8">
           <div className="text-center mb-6">
-            <h1 className="font-heading text-xl italic">Sign in to CPBoard</h1>
+            <LogoMark className="mx-auto mb-4 size-10" />
+            <h1 className="font-heading text-2xl italic">Sign in to CPBoard</h1>
             <p className="text-sm text-muted-foreground mt-1">Use your university email</p>
           </div>
 
