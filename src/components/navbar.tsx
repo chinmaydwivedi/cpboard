@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/logo";
+import { SignOutDialog } from "@/components/sign-out-dialog";
 import {
   Trophy,
   Zap,
@@ -49,6 +49,7 @@ export function Navbar({
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
 
@@ -197,7 +198,7 @@ export function Navbar({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   variant="destructive"
-                  onClick={() => signOut({ callbackUrl: "/" })}
+                  onClick={() => setSignOutOpen(true)}
                   className="gap-2 px-2 py-2 text-[13px]"
                 >
                   <LogOut className="h-3.5 w-3.5" /> Sign Out
@@ -314,7 +315,10 @@ export function Navbar({
               )}
               <button
                 type="button"
-                onClick={() => signOut({ callbackUrl: "/" })}
+                onClick={() => {
+                  setMobileOpen(false);
+                  setSignOutOpen(true);
+                }}
                 className="flex items-center gap-2 w-full px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-destructive transition-colors"
               >
                 <LogOut className="h-3.5 w-3.5" /> Sign Out
@@ -323,6 +327,7 @@ export function Navbar({
           )}
         </div>
       )}
+      {user && <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />}
     </header>
   );
 }

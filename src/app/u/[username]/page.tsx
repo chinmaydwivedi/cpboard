@@ -76,28 +76,29 @@ export default async function ProfilePage({
   const profileViews = user.profileViews;
   const viewerUserId = session.user.id;
 
-  // Your own profile lives on the dashboard, which shows everything here plus
-  // the controls to manage it.
-  if (viewerUserId === user.id) redirect("/dashboard");
-
-  after(async () => {
-    try {
-      const claim = await claimRateLimit({
-        scope: "profile-view",
-        identifier: `${viewerUserId}:${user.id}`,
-        limit: 1,
-        windowMs: 60 * 60 * 1_000,
-      });
-      if (!claim.allowed) return;
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { profileViews: { increment: 1 } },
-        select: { id: true },
-      });
-    } catch (error) {
-      console.error("[PROFILE_VIEW] Failed to increment:", error);
-    }
-  });
+  // Owners see this page as a preview of what their share link shows; their
+  // own visits don't count as profile views.
+  const isOwner = viewerUserId === user.id;
+  if (!isOwner) {
+    after(async () => {
+      try {
+        const claim = await claimRateLimit({
+          scope: "profile-view",
+          identifier: `${viewerUserId}:${user.id}`,
+          limit: 1,
+          windowMs: 60 * 60 * 1_000,
+        });
+        if (!claim.allowed) return;
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { profileViews: { increment: 1 } },
+          select: { id: true },
+        });
+      } catch (error) {
+        console.error("[PROFILE_VIEW] Failed to increment:", error);
+      }
+    });
+  }
 
   const heatmapData: HeatmapData = {};
   const verifiedPlatforms = new Set(
@@ -144,6 +145,7 @@ export default async function ProfilePage({
       profileVisits={profileViews}
       todayIso={todayIso}
       supportEmail={SUPPORT_EMAIL}
+      isOwner={isOwner}
     />
   );
 }

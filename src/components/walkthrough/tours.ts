@@ -251,7 +251,7 @@ export const TOUR_STEPS: Record<TourId, DriveStep[]> = {
       popover: {
         title: "Your profile",
         description:
-          "Your avatar, name, username, university and join date. Edit inline, change your photo, or copy your public profile link to share.",
+          "Your avatar, name, username, university and join date. Edit inline, change your photo, or share your public profile link.",
         side: "bottom",
       },
     },
