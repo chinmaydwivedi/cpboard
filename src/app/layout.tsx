@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
+import { headers } from "next/headers";
+import { CSPProvider } from "@base-ui/react/csp-provider";
 import { Geist, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -95,12 +97,15 @@ function HeaderFallback() {
   return <Navbar user={null} />;
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const activeReleaseId = getActiveReleaseId();
+  // Base UI injects small <style> tags (e.g. hidden scrollbars in select lists);
+  // the per-request nonce from src/proxy.ts lets the CSP allow them.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html
@@ -110,34 +115,36 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>
-          <TooltipProvider>
-            <Suspense fallback={<HeaderFallback />}>
-              <UserAwareHeader />
-            </Suspense>
-            <WhatsNewModal releaseId={activeReleaseId} />
-            <WalkthroughHost />
-            <main className="flex-1">{children}</main>
-            <footer className="mt-12 border-t border-border/40 py-8">
-              <div className="mx-auto flex max-w-5xl flex-col gap-5 px-5 sm:flex-row sm:items-center sm:justify-between">
-                <Link href="/" aria-label="CPBoard home" className="w-fit opacity-90 transition-opacity hover:opacity-100">
-                  <Logo markClassName="size-6" />
-                </Link>
-                <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2 text-[12px] text-muted-foreground">
-                  {FOOTER_LINKS.map((link) => (
-                    <Link key={link.href} href={link.href} className="transition-colors hover:text-foreground">
-                      {link.label}
-                    </Link>
-                  ))}
-                </nav>
-                <span className="font-mono text-[11px] text-muted-foreground">
-                  &copy; {new Date().getFullYear()} CPBoard
-                </span>
-              </div>
-            </footer>
-            <Toaster />
-          </TooltipProvider>
-        </ThemeProvider>
+        <CSPProvider nonce={nonce}>
+          <ThemeProvider>
+            <TooltipProvider>
+              <Suspense fallback={<HeaderFallback />}>
+                <UserAwareHeader />
+              </Suspense>
+              <WhatsNewModal releaseId={activeReleaseId} />
+              <WalkthroughHost />
+              <main className="flex-1">{children}</main>
+              <footer className="mt-12 border-t border-border/40 py-8">
+                <div className="mx-auto flex max-w-5xl flex-col gap-5 px-5 sm:flex-row sm:items-center sm:justify-between">
+                  <Link href="/" aria-label="CPBoard home" className="w-fit opacity-90 transition-opacity hover:opacity-100">
+                    <Logo markClassName="size-6" />
+                  </Link>
+                  <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2 text-[12px] text-muted-foreground">
+                    {FOOTER_LINKS.map((link) => (
+                      <Link key={link.href} href={link.href} className="transition-colors hover:text-foreground">
+                        {link.label}
+                      </Link>
+                    ))}
+                  </nav>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    &copy; {new Date().getFullYear()} CPBoard
+                  </span>
+                </div>
+              </footer>
+              <Toaster />
+            </TooltipProvider>
+          </ThemeProvider>
+        </CSPProvider>
       </body>
     </html>
   );

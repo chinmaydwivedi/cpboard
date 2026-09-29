@@ -20,6 +20,8 @@ import {
   type NotificationPreferences,
 } from "@/components/notification-settings";
 import { PlatformBadge } from "@/components/platform-badge";
+import { ShareProfileDialog } from "@/components/share-profile-dialog";
+import { SignOutDialog } from "@/components/sign-out-dialog";
 import { PLATFORM_LABELS } from "@/types";
 import type { HeatmapData } from "@/types";
 import type { TopicRadarPoint } from "@/lib/topic-radar";
@@ -153,6 +155,8 @@ export function DashboardClient({
   const [currentUsername, setCurrentUsername] = useState(user.username);
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
 
   useEffect(() => {
     const previousByPlatform = new Map(
@@ -212,16 +216,6 @@ export function DashboardClient({
   const codeforcesRating =
     verifiedProfiles.find((profile) => profile.platform === "CODEFORCES")
       ?.rating || 0;
-
-  const handleCopyProfileLink = async () => {
-    const url = `${window.location.origin}/u/${currentUsername}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Profile link copied", { description: url });
-    } catch {
-      toast.error("Couldn't copy the link", { description: url });
-    }
-  };
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -582,16 +576,16 @@ export function DashboardClient({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void handleCopyProfileLink()}
+            onClick={() => setShareOpen(true)}
             className="flex-1 gap-1.5 text-[13px] sm:flex-none"
-            title="Copy the link others use to view your public profile"
+            title="Get the link others use to view your public profile"
           >
             <Link2 className="h-3.5 w-3.5" /> Share profile
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => signOut({ callbackUrl: "/" })}
+            onClick={() => setSignOutOpen(true)}
             className="flex-1 gap-1.5 text-[13px] sm:flex-none"
           >
             <LogOut className="h-3.5 w-3.5" /> Sign Out
@@ -858,6 +852,14 @@ export function DashboardClient({
           }
         />
       )}
+
+      <ShareProfileDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        username={currentUsername}
+        displayName={currentName || currentUsername}
+      />
+      <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />
 
       <NotificationSettings
         vapidPublicKey={vapidPublicKey}

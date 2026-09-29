@@ -64,6 +64,26 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         description:
           "Every page now opens with the same serif title style as the home page, body text uses the crisper Geist typeface, and cards share one border style.",
       },
+      {
+        id: "visible-notifications",
+        label: "FIXED",
+        pageHref: "/dashboard",
+        pageLabel: "Site-wide",
+        iconSrc: "/icon-192x192.png",
+        title: "Messages You Can Actually See",
+        description:
+          "Confirmations and errors after syncing, saving, sharing and more were being blocked from styling and ended up below the footer. They now appear in the corner as intended.",
+      },
+      {
+        id: "share-and-sign-out",
+        label: "IMPROVED",
+        pageHref: "/dashboard",
+        pageLabel: "Dashboard",
+        iconSrc: "/icon-192x192.png",
+        title: "Share Profile and Safer Sign-Out",
+        description:
+          "Share profile opens your link with a copy button and a preview of your public profile, and signing out now asks you to confirm first.",
+      },
     ],
   },
   {

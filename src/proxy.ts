@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { INLINE_STYLE_HASHES } from "@/lib/csp";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const isDevelopment = process.env.NODE_ENV === "development";
@@ -32,7 +33,7 @@ function buildContentSecurityPolicy(nonce: string) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ""}`,
     "script-src-attr 'none'",
-    `style-src 'self' 'nonce-${nonce}'`,
+    `style-src 'self' 'nonce-${nonce}' ${INLINE_STYLE_HASHES.join(" ")}`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",

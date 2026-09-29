@@ -11,6 +11,7 @@ import {
   isValidProblemUrl,
 } from "@/lib/potd";
 import { JsonRequestError, readJsonBody } from "@/lib/security";
+import { describeDailyPracticeIssue } from "@/lib/daily-practice-errors";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
     const firstIssue = parsed.error.issues[0];
     return NextResponse.json(
       {
-        error: firstIssue?.message || "Invalid payload",
+        error: describeDailyPracticeIssue(firstIssue),
       },
       { status: 400 }
     );

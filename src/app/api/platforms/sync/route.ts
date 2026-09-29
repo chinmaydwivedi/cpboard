@@ -9,6 +9,7 @@ import {
 } from "@/lib/platforms";
 import { extractHandle } from "@/lib/parse-handle";
 import { Platform } from "@prisma/client";
+import { PLATFORM_LABELS } from "@/types";
 import { invalidatePlatformViews } from "@/lib/platform-cache";
 import {
   INTERACTIVE_FAILURE_RETRY_MS,
@@ -157,7 +158,7 @@ export async function POST(req: NextRequest) {
       error: error instanceof Error ? error.name : "Unknown",
     });
     return NextResponse.json(
-      { error: notFound ? `${platform} profile not found` : "The provider is unavailable. Try again shortly." },
+      { error: notFound ? `${PLATFORM_LABELS[platform]} profile not found` : "The provider is unavailable. Try again shortly." },
       { status: notFound ? 404 : 502 },
     );
   }

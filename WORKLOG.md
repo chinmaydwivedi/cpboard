@@ -6,7 +6,7 @@ what was asked, what is done, what is left, and why things were decided.
 
 ---
 
-## Current effort: "CPB" monogram logo (logo v2)
+## Current effort: button fixes (after the "CPB" monogram logo, PR #56)
 
 - **Branch:** `feature/cpb-monogram-logo` (cut from `main` at `4ecdc7b`)
 - **Started:** 2026-09-29
@@ -23,8 +23,9 @@ what was asked, what is done, what is left, and why things were decided.
 | 2 | Single source + in-app component + icon generator | Done |
 | 3 | Regenerate favicon, app and PWA icons | Done |
 | 4 | Typecheck, lint, tests, build, visual check | Done — all pass; checked header, footer, sign-in, mobile header, and every icon file (incl. maskable crop and 16px favicon) |
-| 5 | Commit, push, PR | Done — pushed `feature/cpb-monogram-logo` and opened a PR against `main` |
-| 6 | Merge to `main` (deploys to production) | Owner merges; check `git log main` for the logo commit |
+| 5 | Logo PR | Done — PR #56 merged to `main` as `e761a21` |
+| 6 | Button audit + fixes | Done — see "Button audit" below. The owner asked for these in PR #56, but #56 was merged first, so they are on `fix/buttons-and-toasts` in a follow-up PR |
+| 7 | Merge the fixes PR to `main` (deploys to production) | Owner merges; check `git log main` |
 
 ### Logo v2 decisions
 
@@ -46,6 +47,67 @@ what was asked, what is done, what is left, and why things were decided.
   `public/icon-*.png` files on the dark tile (opaque backgrounds are required
   for app launchers; maskable icons keep the mark inside the safe zone).
   **Never hand-edit those files; change `brand-mark.ts` and re-run the script.**
+
+### Button audit (2026-09-29)
+
+Owner report: "Share profile doesn't work", "warn before signing out", "check
+which buttons don't work".
+
+- **Root cause of "buttons do nothing": invisible toasts.** sonner injects its
+  stylesheet at runtime as a `<style>` tag; the CSP (`src/proxy.ts`) only
+  trusts nonce'd styles, so production blocked it and every toast rendered
+  unstyled below the footer. Any button whose only feedback is a toast (Share,
+  Sync, Save, Remove, avatar…) looked dead even when it worked. Present since
+  the July CSP hardening; my earlier dev-mode checks missed it because they
+  looked for toast text in the DOM, not for a visible toast. **Fix:**
+  `src/lib/csp.ts` allows exactly sonner's two style hashes; the test
+  `src/lib/__tests__/csp.test.ts` recomputes them from `node_modules`, so a
+  sonner upgrade that changes its CSS fails CI and prints the new hash.
+- **Base UI styles:** the Select popup injects a scrollbar-hiding `<style>`.
+  Fixed properly with `<CSPProvider nonce>` in `src/app/layout.tsx` (the layout
+  reads `x-nonce` via `headers()`, per the Next 16 CSP guide).
+- **Share profile:** now opens `src/components/share-profile-dialog.tsx` — the
+  link in a box, a Copy button that confirms in place (clipboard API with an
+  `execCommand` fallback), "View public profile", and the native share sheet
+  where supported. Note: `/u/<name>` requires sign-in, and the dialog says so.
+- **Your own `/u/<username>` no longer redirects to `/dashboard`.** It shows
+  the public profile with a "This is your public profile" banner, so a shared
+  link can be previewed. Own visits still don't count as views. `/profile`
+  still redirects to `/dashboard`.
+- **Sign-out confirmation:** `src/components/sign-out-dialog.tsx`, used by the
+  navbar menu, the mobile menu and the dashboard.
+- **Keyboard sorting:** leaderboard sort headers were `<th onClick>`; now real
+  buttons with `aria-sort` and an arrow on the active column
+  (`src/components/leaderboard-table.tsx`).
+- **Messages:** sync errors say "AtCoder profile not found" (not "ATCODER");
+  Daily Practice admin names the missing field ("Java solution is required.")
+  via `src/lib/daily-practice-errors.ts`.
+- **Selects** show labels (done earlier today).
+
+How it was tested (repeat this for UI changes — dev mode is not enough):
+- Production build served over HTTPS on one port with Next's custom-server
+  pattern (`next({ dev: false, hostname: "localhost", port })` +
+  `https.createServer`). `next start` behind a separate proxy port fails the
+  API origin check in `src/proxy.ts`; plain `http://` fails its
+  "secure origin" check in production.
+- Real Postgres via the `embedded-postgres` npm package in a scratch folder,
+  `prisma migrate deploy`, seed, fixture users with `Session` rows. Over HTTPS
+  the auth cookie is `__Secure-authjs.session-token`.
+- Headless Chrome over the DevTools protocol with trusted mouse input,
+  `behavior: "instant"` scrolling (the site uses smooth scroll), and checks on
+  what is visible: toast inside the viewport with a `position: fixed` toaster,
+  dialogs rendered, URLs, API statuses, and the database afterwards.
+- Result: dashboard 36/37 (the one "miss" is the browser logging expected
+  502/404 responses when syncing handles that don't exist upstream; the UI
+  shows proper error toasts), site-wide 70/70, zero CSP violations.
+
+Follow-ups:
+- **Daily Practice drafts require all three solutions.** The API rejects a
+  draft without Java, C++ and Python code, yet the list shows a "Missing
+  solution" badge for drafts. Owner to decide whether drafts may be partial.
+- Contest-reminder toggles/select were not exercised (disabled without VAPID
+  keys locally).
+- Consider committing a Playwright suite based on the approach above.
 
 ## Shipped: ICPC page, dashboard/profile merge, new logo, UI polish
 

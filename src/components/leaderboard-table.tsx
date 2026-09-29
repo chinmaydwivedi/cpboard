@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { LeaderboardEntry } from "@/types";
 import type { Platform } from "@prisma/client";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 const PLATFORM_SHORT_LABELS: Record<Platform, string> = {
@@ -76,6 +77,35 @@ export function LeaderboardTable({
     else { setSortKey(key); setSortAsc(key === "rank"); }
   };
 
+  // Sortable headers are real buttons so keyboard and screen-reader users can sort.
+  const sortHeader = (label: string, key: SortKey, className?: string) => {
+    const active = sortKey === key;
+    return (
+      <th
+        key={key}
+        aria-sort={active ? (sortAsc ? "ascending" : "descending") : "none"}
+        className={cn("px-4 py-2.5", className)}
+      >
+        <button
+          type="button"
+          onClick={() => handleSort(key)}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-sm text-[11px] font-medium uppercase tracking-wider transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
+            active ? "text-foreground" : "text-muted-foreground",
+          )}
+        >
+          {label}
+          {active &&
+            (sortAsc ? (
+              <ArrowUp className="size-3" aria-hidden="true" />
+            ) : (
+              <ArrowDown className="size-3" aria-hidden="true" />
+            ))}
+        </button>
+      </th>
+    );
+  };
+
   const rankDisplay = (rank: number) => {
     if (rank === 1) return <span title="1st">🥇</span>;
     if (rank === 2) return <span title="2nd">🥈</span>;
@@ -89,22 +119,14 @@ export function LeaderboardTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-secondary/30 text-left">
-              <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground cursor-pointer w-14" onClick={() => handleSort("rank")}>
-                #
-              </th>
+              {sortHeader("#", "rank", "w-14")}
               <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">User</th>
               {showUniversity && <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground hidden md:table-cell">University</th>}
-              <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer" onClick={() => handleSort("totalSolved")}>
-                Total
-              </th>
-              {(["CODEFORCES", "LEETCODE", "ATCODER", "CODECHEF"] as Platform[]).map((p) => (
-                <th key={p} className="px-3 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer hidden lg:table-cell" onClick={() => handleSort(p as SortKey)}>
-                  {PLATFORM_SHORT_LABELS[p]}
-                </th>
-              ))}
-              <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground text-right cursor-pointer" onClick={() => handleSort("bestRating")}>
-                LC Rating
-              </th>
+              {sortHeader("Total", "totalSolved", "text-right")}
+              {(["CODEFORCES", "LEETCODE", "ATCODER", "CODECHEF"] as Platform[]).map((p) =>
+                sortHeader(PLATFORM_SHORT_LABELS[p], p, "px-3 text-right hidden lg:table-cell"),
+              )}
+              {sortHeader("LC Rating", "bestRating", "text-right")}
             </tr>
           </thead>
           <tbody>

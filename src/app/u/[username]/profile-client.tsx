@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import NextImage from "next/image";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,7 @@ import { PLATFORM_CARD_CLASS } from "@/lib/platform-styles";
 import { getCodeforcesRankColor, getCodeforcesRankTitle } from "@/lib/scoring";
 import type { HeatmapData } from "@/types";
 import type { Platform } from "@prisma/client";
-import { ExternalLink, Mail } from "lucide-react";
+import { ExternalLink, Eye, Mail, PencilLine } from "lucide-react";
 
 type ProfileProps = {
   user: {
@@ -34,9 +35,10 @@ type ProfileProps = {
   profileVisits: number;
   todayIso: string;
   supportEmail: string;
+  isOwner: boolean;
 };
 
-/** Public, read-only profile. Owners are redirected to /dashboard instead. */
+/** Public, read-only profile. Owners see it as a preview of their share link. */
 export function ProfileClient({
   user,
   profiles,
@@ -45,12 +47,33 @@ export function ProfileClient({
   profileVisits,
   todayIso,
   supportEmail,
+  isOwner,
 }: ProfileProps) {
   const leetcodeProfile = profiles.find((p) => p.platform === "LEETCODE");
   const leetcodeRating = leetcodeProfile?.rating || leetcodeProfile?.maxRating || 0;
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
+      {isOwner && (
+        <div
+          role="status"
+          className="mb-6 flex flex-col gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="flex items-start gap-2 text-sm">
+            <Eye className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+            <span>
+              <span className="font-medium">This is your public profile.</span>{" "}
+              <span className="text-muted-foreground">It&apos;s what people see when you share your link.</span>
+            </span>
+          </p>
+          <Link
+            href="/dashboard"
+            className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-3 text-xs font-medium transition-colors hover:bg-secondary"
+          >
+            <PencilLine className="size-3.5" aria-hidden="true" /> Edit on dashboard
+          </Link>
+        </div>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
