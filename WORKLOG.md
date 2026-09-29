@@ -32,7 +32,8 @@ what was asked, what is done, what is left, and why things were decided.
 | 6 | Changelog entry in `src/lib/changelog.ts` for the release | Done |
 | 7 | Typecheck, lint, tests, build, browser tests | Done — all pass (43 unit tests + DB-backed browser checks) |
 | 8 | Commit + push branch | Done (2026-09-29) — **not merged; not live until merged to `main`** |
-| 9 | Open PR / merge to `main` | Not done — waiting for the owner to ask |
+| 9 | Open PR | Done — [#54](https://github.com/chinmaydwivedi/cpboard/pull/54); all CI checks pass (build, lint, typecheck, tests, audit, CodeQL) |
+| 10 | Merge #54 to `main` (deploys to production) | Not done — waiting for the owner |
 
 ### Decisions (and why)
 
