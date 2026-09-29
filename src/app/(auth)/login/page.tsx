@@ -94,7 +94,7 @@ export default function LoginPage() {
       <div className="relative mx-auto max-w-sm px-5 w-full">
         <div className="rounded-lg border border-border/60 bg-card/90 backdrop-blur-sm p-8">
           <div className="text-center mb-6">
-            <LogoMark className="mx-auto mb-4 size-10" />
+            <LogoMark className="mx-auto mb-4 size-12" />
             <h1 className="font-heading text-2xl italic">Sign in to CPBoard</h1>
             <p className="text-sm text-muted-foreground mt-1">Use your university email</p>
           </div>
