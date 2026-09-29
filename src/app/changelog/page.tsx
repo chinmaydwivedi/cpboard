@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { CHANGELOG_RELEASES } from "@/lib/changelog";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 
 function formatDate(iso: string) {
   return new Date(`${iso}T00:00:00.000Z`).toLocaleDateString("en-US", {
@@ -21,12 +22,12 @@ export default function ChangelogPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
-      <div className="mb-7" data-tour="changelog-header">
-        <h1 className="text-2xl font-bold tracking-tight">Changelog</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Product updates and improvements in one place.
-        </p>
-      </div>
+      <PageHeader
+        tour="changelog-header"
+        eyebrow="What shipped"
+        title="Changelog"
+        description="Product updates and improvements in one place."
+      />
 
       <section
         className="rounded-lg border border-primary/25 bg-linear-to-br from-primary/10 via-card to-card p-5 mb-6"

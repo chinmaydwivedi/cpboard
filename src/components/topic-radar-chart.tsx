@@ -147,7 +147,7 @@ export function TopicRadarChart({
   }, [data, scaledData]);
 
   return (
-    <div className="rounded-lg border border-border/80 bg-card/60 p-4">
+    <div className="rounded-lg border border-border/60 bg-card/50 p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-foreground">Topic Radar (Codeforces + LeetCode)</p>

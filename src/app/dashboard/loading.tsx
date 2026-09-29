@@ -4,14 +4,14 @@ export default function DashboardLoading() {
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
       <div className="mb-8 flex items-center gap-4">
-        <Skeleton className="size-14 shrink-0 rounded-full" />
+        <Skeleton className="size-16 shrink-0 rounded-full" />
         <div className="min-w-0 flex-1">
-          <Skeleton className="h-6 w-40 max-w-full" />
-          <Skeleton className="mt-2 h-4 w-32" />
+          <Skeleton className="h-8 w-48 max-w-full" />
+          <Skeleton className="mt-2 h-4 w-56 max-w-full" />
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3 mb-6">
-        {[1, 2, 3].map((i) => (
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-6">
+        {[1, 2, 3, 4].map((i) => (
           <div key={i} className="rounded-lg border border-border/60 p-4">
             <Skeleton className="h-3 w-28 mb-3" />
             <Skeleton className="h-7 w-16" />
@@ -40,7 +40,10 @@ export default function DashboardLoading() {
         ))}
       </div>
       <Skeleton className="mb-8 h-64 w-full rounded-lg" />
-      <Skeleton className="h-36 w-full rounded-lg" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Skeleton className="h-36 rounded-lg" />
+        <Skeleton className="h-36 rounded-lg" />
+      </div>
     </div>
   );
 }

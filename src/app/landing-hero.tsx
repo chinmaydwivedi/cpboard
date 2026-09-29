@@ -119,7 +119,7 @@ export function LandingHero({
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.25 + i * 0.06 }}
-                className="rounded-lg border border-border/40 p-5 hover:border-primary/30 transition-colors"
+                className="rounded-lg border border-border/60 p-5 hover:border-primary/30 transition-colors"
               >
                 <Icon className="h-5 w-5 text-primary mb-3" strokeWidth={1.5} />
                 <h3 className="font-semibold text-sm">{feature.title}</h3>
@@ -137,7 +137,7 @@ export function LandingHero({
         />
         <div className="absolute inset-0 bg-linear-to-b from-background via-background/70 to-background dark:from-background dark:via-background/60 dark:to-background" />
         <div className="relative mx-auto max-w-5xl px-5 py-20">
-          <div className="rounded-lg border border-border/40 bg-card/60 p-6 text-center backdrop-blur-sm sm:p-10" data-tour="home-cta">
+          <div className="rounded-lg border border-border/60 bg-card/60 p-6 text-center backdrop-blur-sm sm:p-10" data-tour="home-cta">
             <h2 className="font-heading text-2xl italic">Ready to compete?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {isLoggedIn

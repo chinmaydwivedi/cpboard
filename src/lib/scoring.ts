@@ -28,15 +28,18 @@ export function compareLeaderboardScores(
   );
 }
 
+/**
+ * Codeforces rank hues, lifted so each one keeps at least 5:1 contrast on the
+ * site's dark background (the official #0000ff blue is about 2.3:1).
+ */
 export function getCodeforcesRankColor(rating: number): string {
-  if (rating >= 3000) return "#ff0000";
-  if (rating >= 2400) return "#ff0000";
+  if (rating >= 2400) return "#ff3b3b";
   if (rating >= 2100) return "#ff8c00";
-  if (rating >= 1900) return "#aa00aa";
-  if (rating >= 1600) return "#0000ff";
+  if (rating >= 1900) return "#c94fd6";
+  if (rating >= 1600) return "#5b7cff";
   if (rating >= 1400) return "#03a89e";
-  if (rating >= 1200) return "#008000";
-  return "#808080";
+  if (rating >= 1200) return "#2fb344";
+  return "#9ca3af";
 }
 
 export function getCodeforcesRankTitle(rating: number): string {

@@ -23,6 +23,12 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
+const CONTEST_LEAD_LABELS: Record<string, string> = {
+  "15": "15 min before",
+  "30": "30 min before",
+  "60": "60 min before",
+};
+
 export type NotificationPreferences = {
   leaderAlerts: boolean;
   contestAlerts: boolean;
@@ -462,7 +468,7 @@ export function NotificationSettings({
 
   return (
     <section
-      className="mb-8 overflow-hidden rounded-lg border border-border/80 bg-card/60"
+      className="mb-8 overflow-hidden rounded-lg border border-border/60 bg-card/50"
       data-tour="dash-notifications"
     >
       <div className="flex flex-col gap-3 border-b border-border/50 px-4 py-3.5 sm:flex-row sm:items-start sm:justify-between">
@@ -558,6 +564,7 @@ export function NotificationSettings({
           <div className="flex min-h-11 w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
             <Select
               value={String(preferences.contestLeadMinutes)}
+              items={CONTEST_LEAD_LABELS}
               onValueChange={(value) => {
                 const minutes = Number(value) as 15 | 30 | 60;
                 if ([15, 30, 60].includes(minutes)) {

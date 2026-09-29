@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/logo";
 import {
   Trophy,
   Zap,
@@ -11,13 +12,13 @@ import {
   Menu,
   X,
   LogOut,
-  User,
   CircleHelp,
   BookText,
   Sparkles,
   RefreshCw,
   Shield,
   CalendarDays,
+  Globe,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -36,6 +37,7 @@ const links = [
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/cp-rankings", label: "CP Rankings", icon: Zap },
   { href: "/contests", label: "Contests", icon: CalendarDays },
+  { href: "/icpc", label: "ICPC", icon: Globe },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 
@@ -91,14 +93,14 @@ export function Navbar({
   return (
     <header data-tour="site-header" className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <nav
-        className="mx-auto flex h-14 max-w-7xl items-center justify-between px-5 sm:px-8"
+        className="mx-auto grid h-14 max-w-7xl grid-cols-[1fr_auto] items-center gap-4 px-5 sm:px-8 lg:grid-cols-[1fr_auto_1fr]"
         aria-label="Primary navigation"
       >
-        <Link href="/" className="flex items-center">
-          <span className="font-semibold text-[15px] tracking-tight">CPBoard</span>
+        <Link href="/" aria-label="CPBoard home" className="flex w-fit items-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          <Logo />
         </Link>
 
-        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 lg:flex">
+        <div className="hidden items-center gap-0.5 lg:flex">
           {links.map((link) => {
             const Icon = link.icon;
             const active = pathname === link.href || pathname.startsWith(link.href + "/");
@@ -112,14 +114,14 @@ export function Navbar({
                   active ? "text-primary bg-primary/8" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="hidden h-3.5 w-3.5 xl:block" aria-hidden="true" />
                 {link.label}
               </Link>
             );
           })}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           {user && (
             <button
               type="button"
@@ -178,12 +180,6 @@ export function Navbar({
                 </span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem
-                  onClick={() => router.push("/profile")}
-                  className="gap-2 px-2 py-2 text-[13px]"
-                >
-                  <User className="h-3.5 w-3.5" /> Profile
-                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => router.push("/dashboard")}
                   className="gap-2 px-2 py-2 text-[13px]"
@@ -307,13 +303,6 @@ export function Navbar({
           {user && (
             <>
               <div className="border-t border-border/40 my-1" />
-              <Link
-                href="/profile"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2 px-2 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <User className="h-3.5 w-3.5" /> Profile
-              </Link>
               {user.isAdmin && (
                 <Link
                   href="/admin"

@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { OnboardingClient } from "./onboarding-client";
+
+export const metadata: Metadata = {
+  title: "Welcome",
+};
 
 export default async function OnboardingPage() {
   let session;

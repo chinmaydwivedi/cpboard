@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { PageHeader } from "@/components/page-header";
 import {
   POTD_LANGUAGES,
   PROBLEM_PLATFORM_LABELS,
@@ -326,18 +327,18 @@ export function DailyPracticeAdminClient({
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
-      <div className="mb-6" data-tour="admin-potd-header">
-        <Link
-          href={isFullAdmin ? "/admin" : "/dashboard"}
-          className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> {isFullAdmin ? "Back to Admin" : "Back to Dashboard"}
-        </Link>
-        <h1 className="text-2xl font-bold tracking-tight mt-2">Daily Practice Admin</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Create, edit, and publish the POTD with Java, C++, and Python solutions.
-        </p>
-      </div>
+      <Link
+        href={isFullAdmin ? "/admin" : "/dashboard"}
+        className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" /> {isFullAdmin ? "Back to Admin" : "Back to Dashboard"}
+      </Link>
+      <PageHeader
+        tour="admin-potd-header"
+        eyebrow="Restricted"
+        title="Daily Practice Admin"
+        description="Create, edit, and publish the POTD with Java, C++, and Python solutions."
+      />
 
       <section className="rounded-lg border border-border/60 p-5 mb-6" data-tour="admin-potd-form">
         <div className="flex items-center justify-between gap-2 mb-4">
@@ -373,6 +374,7 @@ export function DailyPracticeAdminClient({
               <Label className="text-[11px] font-medium text-muted-foreground">Platform</Label>
               <Select
                 value={form.platform}
+                items={PROBLEM_PLATFORM_LABELS}
                 onValueChange={(value) =>
                   setForm((prev) => ({
                     ...prev,

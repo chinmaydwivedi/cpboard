@@ -4,6 +4,8 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const isDevelopment = process.env.NODE_ENV === "development";
 const STATIC_PATHS = new Set([
   "/favicon.ico",
+  "/icon.svg",
+  "/apple-icon.png",
   "/icon-192x192.png",
   "/icon-512x512.png",
   "/icon-maskable-192x192.png",
@@ -99,7 +101,7 @@ export const config = {
     "/api/:path*",
     {
       source:
-        "/((?!api|_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|icon-192x192.png|icon-512x512.png|icon-maskable-192x192.png|icon-maskable-512x512.png|bg/|cpboard-app-icon.svg|file.svg|globe.svg|next.svg|vercel.svg|window.svg|.well-known/security.txt).*)",
+        "/((?!api|_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|sw.js|manifest.webmanifest|icon-192x192.png|icon-512x512.png|icon-maskable-192x192.png|icon-maskable-512x512.png|bg/|cpboard-app-icon.svg|file.svg|globe.svg|next.svg|vercel.svg|window.svg|.well-known/security.txt).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

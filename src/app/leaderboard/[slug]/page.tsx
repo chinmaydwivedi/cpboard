@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
@@ -8,6 +9,7 @@ import {
 import { computePotdStreak, dateToDateKey } from "@/lib/potd";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 import type { LeaderboardEntry } from "@/types";
 import { withReadRetry } from "@/lib/read-retry";
 import { unstable_cache } from "next/cache";
@@ -15,6 +17,16 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
 
 export const revalidate = 60;
 export const dynamic = "force-dynamic";
+
+// Uses only the URL segment, like public profiles, so the title costs no query.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  return { title: `${slug} Leaderboard` };
+}
 
 const getUniversity = unstable_cache(
   (slug: string) =>
@@ -115,18 +127,20 @@ export default async function UniversityLeaderboardPage({
     .map((e, i) => ({ ...e, rank: i + 1 }));
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-8" data-tour="lb-uni-header">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">{university.name}</h1>
-          <Badge variant="outline" className="font-mono">
-            {university.shortName}
-          </Badge>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {entries.length} active member{entries.length !== 1 ? "s" : ""}
-        </p>
-      </div>
+    <div className="mx-auto max-w-5xl px-5 py-8">
+      <PageHeader
+        tour="lb-uni-header"
+        eyebrow={
+          <span className="inline-flex items-center gap-2">
+            University board
+            <Badge variant="outline" className="h-4 px-1.5 font-mono text-[9px] tracking-normal">
+              {university.shortName}
+            </Badge>
+          </span>
+        }
+        title={university.name}
+        description={`${entries.length} active member${entries.length !== 1 ? "s" : ""}, ranked by problems solved.`}
+      />
 
       {entries.length > 0 ? (
         <LeaderboardTable entries={entries} showUniversity={false} />

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Code2, ExternalLink } from "lucide-react";
 import { getUpcomingContestFeed } from "@/lib/contests";
 import { ContestsClient } from "./contests-client";
+import { PageHeader } from "@/components/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +16,12 @@ export default async function ContestsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8">
-      <div className="mb-7" data-tour="contests-header">
-        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-primary">
-          Never miss a round
-        </p>
-        <h1 className="text-2xl font-bold tracking-tight">Contest Calendar</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Upcoming contests across the major competitive programming platforms.
-        </p>
-      </div>
+      <PageHeader
+        tour="contests-header"
+        eyebrow="Never miss a round"
+        title="Contest Calendar"
+        description="Upcoming contests across the major competitive programming platforms."
+      />
 
       <a
         href="https://snippex-navy.vercel.app/"

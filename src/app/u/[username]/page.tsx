@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { ProfileClient } from "./profile-client";
 import type { HeatmapData } from "@/types";
 import { claimRateLimit } from "@/lib/security";
+import { SUPPORT_EMAIL } from "@/lib/site";
 
 export const revalidate = 60;
 
@@ -75,26 +76,28 @@ export default async function ProfilePage({
   const profileViews = user.profileViews;
   const viewerUserId = session.user.id;
 
-  if (viewerUserId !== user.id) {
-    after(async () => {
-      try {
-        const claim = await claimRateLimit({
-          scope: "profile-view",
-          identifier: `${viewerUserId}:${user.id}`,
-          limit: 1,
-          windowMs: 60 * 60 * 1_000,
-        });
-        if (!claim.allowed) return;
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { profileViews: { increment: 1 } },
-          select: { id: true },
-        });
-      } catch (error) {
-        console.error("[PROFILE_VIEW] Failed to increment:", error);
-      }
-    });
-  }
+  // Your own profile lives on the dashboard, which shows everything here plus
+  // the controls to manage it.
+  if (viewerUserId === user.id) redirect("/dashboard");
+
+  after(async () => {
+    try {
+      const claim = await claimRateLimit({
+        scope: "profile-view",
+        identifier: `${viewerUserId}:${user.id}`,
+        limit: 1,
+        windowMs: 60 * 60 * 1_000,
+      });
+      if (!claim.allowed) return;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { profileViews: { increment: 1 } },
+        select: { id: true },
+      });
+    } catch (error) {
+      console.error("[PROFILE_VIEW] Failed to increment:", error);
+    }
+  });
 
   const heatmapData: HeatmapData = {};
   const verifiedPlatforms = new Set(
@@ -140,8 +143,7 @@ export default async function ProfilePage({
       totalSolved={totalSolved}
       profileVisits={profileViews}
       todayIso={todayIso}
-      supportEmail="chinmaydhardwivedi@gmail.com"
-      isOwner={viewerUserId === user.id}
+      supportEmail={SUPPORT_EMAIL}
     />
   );
 }

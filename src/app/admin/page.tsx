@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { hasAdminAccess } from "@/lib/admin";
 import { AdminClient } from "./admin-client";
+
+export const metadata: Metadata = {
+  title: "Admin",
+};
 
 export default async function AdminPage() {
   let session;
