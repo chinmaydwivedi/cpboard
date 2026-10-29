@@ -140,6 +140,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   pages: {
     signIn: "/login",
+    // Expired or reused magic links land on the sign-in form with a message
+    // instead of Auth.js's unstyled built-in error page.
+    error: "/login",
     verifyRequest: "/verify",
   },
   callbacks: {

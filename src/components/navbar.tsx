@@ -181,21 +181,17 @@ export function Navbar({
                 </span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem
-                  onClick={() => router.push("/dashboard")}
-                  className="gap-2 px-2 py-2 text-[13px]"
-                >
-                  <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
-                </DropdownMenuItem>
                 {user.isAdmin && (
-                  <DropdownMenuItem
-                    onClick={() => router.push("/admin")}
-                    className="gap-2 px-2 py-2 text-[13px]"
-                  >
-                    <Shield className="h-3.5 w-3.5" /> Admin
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => router.push("/admin")}
+                      className="gap-2 px-2 py-2 text-[13px]"
+                    >
+                      <Shield className="h-3.5 w-3.5" /> Admin
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
                 )}
-                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   variant="destructive"
                   onClick={() => setSignOutOpen(true)}

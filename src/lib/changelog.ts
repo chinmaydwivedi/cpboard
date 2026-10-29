@@ -84,6 +84,16 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
         description:
           "Share profile opens your link with a copy button and a preview of your public profile, and signing out now asks you to confirm first.",
       },
+      {
+        id: "signed-in-skips-sign-in",
+        label: "FIXED",
+        pageHref: "/dashboard",
+        pageLabel: "Sign in",
+        iconSrc: "/icon-192x192.png",
+        title: "No More Sign-In Page When You're Signed In",
+        description:
+          "Opening the sign-in page while already signed in now takes you to your dashboard, and an expired or already-used sign-in link explains what happened instead of showing a bare error page.",
+      },
     ],
   },
   {

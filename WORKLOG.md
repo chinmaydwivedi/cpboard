@@ -6,7 +6,111 @@ what was asked, what is done, what is left, and why things were decided.
 
 ---
 
-## Current effort: button fixes (after the "CPB" monogram logo, PR #56)
+## Current effort: routine check, sign-in redirect, failing CI
+
+- **Branch:** `fix/login-redirect-and-security-audit` (cut from `main` at `1a64fdf`)
+- **Started:** 2026-10-29
+- **Owner request:** "do a routine check"; the sign-in page shows even when
+  signed in; "Dashboard" appears both in the account (profile) menu and in the
+  top nav; "a lot of fail messages come from GitHub job runs".
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Find why GitHub runs fail | Done — see "Failing Security gate" |
+| 2 | Patch vulnerable dependencies (Next RCEs first) | Done — audit at `high` passes; 3 low remain |
+| 3 | Signed-in users skip `/login` | Done |
+| 4 | Remove duplicate Dashboard from the account menu | Done |
+| 5 | Typecheck, lint, tests, build, prod-build browser check | Done — all pass |
+| 6 | Commit, push, PR to `main` | Done — PR [#65](https://github.com/chinmaydwivedi/cpboard/pull/65) open; owner merges (deploys to production) |
+
+### Failing Security gate (cause and fix)
+
+- **What fails:** only the *Security gate* workflow (`security.yml`), at the
+  step **"Audit known vulnerabilities"** (`npm audit --audit-level=high`).
+  It has failed on every daily scheduled run since **2026-09-30**; pushes
+  before that passed. Background maintenance, CodeQL and the production probe
+  all pass. The 18 open Dependabot PRs fail the same step: each bumps one
+  package while the audit still flags all the others.
+- **Why:** no code broke. New advisories were published against packages
+  already in the lockfile: 20 findings (3 critical, 9 high). The ones that
+  reach production: **`next` 16.3.5** (critical unauthenticated RCEs in the
+  image optimizer, `use cache` and `next/og`, plus SSRF/cache poisoning),
+  **nodemailer 9.1.1** (the `smtp-mailer` alias that sends magic links;
+  address-parser DoS and recipient-injection bugs), `zod` (memory DoS),
+  `sharp` (librsvg), `dompurify` (via posthog-js). The rest are dev-only
+  (shadcn CLI → MCP SDK/express, vitest/vite, tailwind's source-map-js).
+- **Fix:** `next` + `eslint-config-next` → 16.4.3, `smtp-mailer` →
+  `npm:nodemailer@10.2.1` (only breaking change: Node ≥ 20; default export,
+  `createTransport` and `sendMail` checked), `zod` → ^4.6.7, `vitest` →
+  ^4.1.12, then `npm audit fix` for transitive packages. The shadcn CLI
+  update dropped its MCP-server/express tree, so the lockfile shrank; Linux
+  native binaries (`@next/swc-linux-x64-gnu`, `@img/sharp-linux-x64`, …)
+  are still locked.
+- **Left:** 3 low findings in `deepmerge` under the shadcn CLI (dev-only).
+  npm's only "fix" is downgrading shadcn to 1.0.0, so they are accepted.
+- **Lint side effect:** `eslint-config-next` 16.4 brings
+  `eslint-plugin-react-hooks` 7.1.1, which turned React Compiler checks into
+  errors in older code. `layout.tsx` (JSX inside try/catch) was fixed.
+  `react-hooks/set-state-in-effect` and `preserve-manual-memoization` are set
+  to **warn** in `eslint.config.mjs` (8 warnings) so the gate stays useful.
+  **Follow-up:** refactor those effects in `dashboard-client.tsx`,
+  `potd-client.tsx`, `notification-settings.tsx` and
+  `platform-verification-dialog.tsx`, then delete the override.
+- **Dependabot backlog:** once this merges, Dependabot should close the PRs
+  it superseded (hono, MCP SDK, vite, source-map-js, proxy-addr, undici,
+  nanoid, dompurify, ip-address, the grouped minor/patch PRs) on its next
+  run. Still open on purpose: majors (`prisma` 7, `eslint` 10,
+  `lucide-react` 1.x, `next-auth`/`@auth/*`) and the two GitHub Actions bumps.
+  Each needs its own upgrade, not a blind merge.
+- **Going forward:** a red scheduled *Security gate* means "a new advisory
+  hit a locked package". Run `npm audit`, patch, and merge promptly.
+
+### Sign-in and menu decisions
+
+- **`/login` when signed in:** `src/app/(auth)/login/page.tsx` is now a
+  server page that redirects to `/dashboard` (which sends unfinished accounts
+  on to `/onboarding`). The form moved to `login-client.tsx`; the title-only
+  `layout.tsx` was removed. If auth itself errors, the form still renders
+  (no redirect loop with the dashboard's own `/login` fallback). Likely way
+  owners hit it: the "Protected Magic-Link Sign-In" changelog card links to
+  `/login`.
+- **Sign-in errors are shown now.** `?error=` was set by Auth.js and by our
+  own code (`UnknownUniversity`, `RateLimited`, `InvalidRequest`, …) but the
+  page never read it. Known codes get a specific message, anything else a
+  generic one (a `Map`, so `?error=constructor` can't reach prototype keys).
+  `pages.error` is now `/login`, so an expired or already-used magic link
+  (`Verification`) shows "That sign-in link has expired…" instead of Auth.js's
+  unstyled built-in page.
+- **Duplicate Dashboard:** removed from the account menu, kept in the top
+  nav (and mobile menu, where it appeared once already). The account menu is
+  now *Sign Out* for students, *Admin / Sign Out* for admins.
+- Changelog: "No More Sign-In Page When You're Signed In" (FIXED) added to
+  the current release.
+
+### Testing (2026-10-29)
+
+- Exactly the CI gate steps with CI's env: `npm ci`, `npm ls --all`,
+  `npm audit --audit-level=high`, `prisma validate`, lint (0 errors),
+  typecheck, 49 unit tests, `npm run build` — all pass.
+- Production build (`next start`) against `embedded-postgres` (scratch dir,
+  migrated + seeded, fixture student / not-onboarded / admin with `Session`
+  rows; over http the cookie is `authjs.session-token`):
+  - curl: signed-in and not-onboarded `/login` → `/dashboard` (→
+    `/onboarding`); signed-out `/login` renders the form and its title; each
+    `?error=` code shows its message; a bogus magic link and
+    `/api/auth/error` both land on `/login?error=Verification`.
+  - Headless Chrome (CDP, trusted mouse input): 10/10 — redirect in the
+    browser, top nav still has Dashboard, student menu is just Sign Out
+    (no stray separator) and opens the confirm dialog, admin menu is Admin +
+    Sign Out, error banner shown, mobile menu lists Dashboard once, no
+    horizontal scroll at 390px. Only console error: the analytics beacon's
+    expected 403 over plain http (secure-origin check).
+- Not testable locally: a real magic-link email (SMTP host is hard-coded to
+  Brevo). Owner: after deploy, request one sign-in link on production.
+
+---
+
+## Shipped: button fixes (after the "CPB" monogram logo, PR #56)
 
 - **Branch:** `feature/cpb-monogram-logo` (cut from `main` at `4ecdc7b`)
 - **Started:** 2026-09-29
@@ -25,7 +129,7 @@ what was asked, what is done, what is left, and why things were decided.
 | 4 | Typecheck, lint, tests, build, visual check | Done — all pass; checked header, footer, sign-in, mobile header, and every icon file (incl. maskable crop and 16px favicon) |
 | 5 | Logo PR | Done — PR #56 merged to `main` as `e761a21` |
 | 6 | Button audit + fixes | Done — see "Button audit" below. The owner asked for these in PR #56, but #56 was merged first, so they are on `fix/buttons-and-toasts` in a follow-up PR |
-| 7 | Merge the fixes PR to `main` (deploys to production) | Owner merges; check `git log main` |
+| 7 | Merge the fixes PR to `main` (deploys to production) | Done — PR #57 merged as `1a64fdf` |
 
 ### Logo v2 decisions
 
