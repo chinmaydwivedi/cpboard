@@ -21,7 +21,7 @@ what was asked, what is done, what is left, and why things were decided.
 | 3 | Signed-in users skip `/login` | Done |
 | 4 | Remove duplicate Dashboard from the account menu | Done |
 | 5 | Typecheck, lint, tests, build, prod-build browser check | Done — all pass |
-| 6 | Commit, push, PR to `main` | Done — PR open; owner merges (deploys to production) |
+| 6 | Commit, push, PR to `main` | Done — PR [#65](https://github.com/chinmaydwivedi/cpboard/pull/65) open; owner merges (deploys to production) |
 
 ### Failing Security gate (cause and fix)
 
