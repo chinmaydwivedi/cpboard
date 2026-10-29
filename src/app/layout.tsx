@@ -56,13 +56,13 @@ const FOOTER_LINKS = [
   { href: "/changelog", label: "Changelog" },
 ];
 
-async function UserAwareHeader() {
+async function getNavUser() {
   try {
     const session = await getCurrentSession();
     if (session?.user?.email && session.user.id) {
       const isAdmin =
         session.role === "ADMIN" || isAllowlistedAdminEmail(session.user.email);
-      const navUser = {
+      return {
         id: session.user.id,
         email: session.user.email,
         name: session.user.name,
@@ -70,25 +70,19 @@ async function UserAwareHeader() {
         isAdmin,
         isPotdAdmin: !isAdmin && isPotdAdminEmail(session.user.email),
       };
-      return (
-        <>
-          <Navbar user={navUser} />
-          <AnalyticsTracker
-            user={{
-              id: navUser.id,
-            }}
-          />
-        </>
-      );
     }
   } catch {
     // auth not configured yet
   }
+  return null;
+}
 
+async function UserAwareHeader() {
+  const navUser = await getNavUser();
   return (
     <>
-      <Navbar user={null} />
-      <AnalyticsTracker user={null} />
+      <Navbar user={navUser} />
+      <AnalyticsTracker user={navUser ? { id: navUser.id } : null} />
     </>
   );
 }
